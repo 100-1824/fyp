@@ -10,6 +10,14 @@ from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
+# Try to import joblib as a more robust alternative to pickle
+try:
+    import joblib
+    JOBLIB_AVAILABLE = True
+except ImportError:
+    JOBLIB_AVAILABLE = False
+    logger.debug("joblib not available, using pickle only")
+
 
 class AIDetectionService:
     """Service for AI-powered network intrusion detection using trained model"""
@@ -56,79 +64,167 @@ class AIDetectionService:
         
         # Load model and components
         self.load_model()
-    
+
+    def _safe_pickle_load(self, file_path: Path, description: str) -> Optional[Any]:
+        """
+        Safely load a pickle file with fallback mechanisms.
+
+        Args:
+            file_path: Path to pickle file
+            description: Description for logging
+
+        Returns:
+            Loaded object or None if failed
+        """
+        if not file_path.exists():
+            logger.debug(f"{description} file not found: {file_path}")
+            return None
+
+        # Try joblib first (more robust)
+        if JOBLIB_AVAILABLE:
+            try:
+                obj = joblib.load(file_path)
+                logger.info(f"✓ Loaded {description} using joblib")
+                return obj
+            except Exception as e:
+                logger.debug(f"joblib load failed for {description}: {e}")
+
+        # Try standard pickle with different protocols
+        for encoding in [None, 'latin1', 'bytes']:
+            try:
+                with open(file_path, 'rb') as f:
+                    if encoding:
+                        obj = pickle.load(f, encoding=encoding)
+                    else:
+                        obj = pickle.load(f)
+                logger.info(f"✓ Loaded {description} using pickle" +
+                           (f" (encoding: {encoding})" if encoding else ""))
+                return obj
+            except Exception as e:
+                logger.debug(f"pickle load failed for {description} with encoding {encoding}: {e}")
+                continue
+
+        logger.warning(f"Failed to load {description} from {file_path}")
+        return None
+
     def load_model(self) -> bool:
         """
         Load trained model and preprocessing components.
-        
+
         Returns:
             True if successful, False otherwise
         """
         try:
             logger.info(f"Loading AI detection model from {self.model_path}")
-            
+
             # Load Keras model
             model_file = self.model_path / 'dids_final.keras'
             if not model_file.exists():
                 model_file = self.model_path / 'dids.keras'
-            
+
             if model_file.exists():
-                # Import TensorFlow only when needed
-                import tensorflow as tf
-                self.model = tf.keras.models.load_model(str(model_file))
-                logger.info(f"✓ Loaded model: {model_file.name}")
+                try:
+                    # Import TensorFlow only when needed
+                    import tensorflow as tf
+                    self.model = tf.keras.models.load_model(str(model_file))
+                    logger.info(f"✓ Loaded model: {model_file.name}")
+                except Exception as e:
+                    logger.error(f"Failed to load Keras model: {e}")
+                    return False
             else:
-                logger.error("Model file not found")
+                logger.error(f"Model file not found in {self.model_path}")
                 return False
-            
-            # Load scaler
+
+            # Load scaler with safe loading
             scaler_file = self.model_path / 'scaler.pkl'
-            if scaler_file.exists():
-                with open(scaler_file, 'rb') as f:
-                    self.scaler = pickle.load(f)
-                logger.info("✓ Loaded scaler")
-            else:
-                logger.warning("Scaler not found - using default normalization")
-            
-            # Load label encoder
+            self.scaler = self._safe_pickle_load(scaler_file, "scaler")
+            if not self.scaler:
+                logger.warning("Scaler not available - will use simple normalization")
+
+            # Load label encoder with safe loading
             encoder_file = self.model_path / 'label_encoder.pkl'
-            if encoder_file.exists():
-                with open(encoder_file, 'rb') as f:
-                    self.label_encoder = pickle.load(f)
-                logger.info(f"✓ Loaded label encoder with {len(self.label_encoder.classes_)} classes")
+            self.label_encoder = self._safe_pickle_load(encoder_file, "label encoder")
+
+            # Create fallback label encoder if not available
+            if not self.label_encoder:
+                logger.warning("Label encoder not available - creating fallback")
+                self._create_fallback_label_encoder()
             else:
-                logger.error("Label encoder not found")
-                return False
-            
+                logger.info(f"✓ Label encoder has {len(self.label_encoder.classes_)} classes")
+
             # Load feature names
             feature_file = self.model_path / 'feature_names.json'
             if feature_file.exists():
-                with open(feature_file, 'r') as f:
-                    self.feature_names = json.load(f)
-                logger.info(f"✓ Loaded {len(self.feature_names)} feature names")
+                try:
+                    with open(feature_file, 'r') as f:
+                        self.feature_names = json.load(f)
+                    logger.info(f"✓ Loaded {len(self.feature_names)} feature names")
+                except Exception as e:
+                    logger.warning(f"Failed to load feature names: {e}")
+                    self._create_fallback_features()
             else:
-                logger.warning("Feature names not found - using default order")
-            
+                logger.warning("Feature names not found - creating fallback")
+                self._create_fallback_features()
+
             # Load model configuration
             config_file = self.model_path / 'dids_config.json'
             if config_file.exists():
-                with open(config_file, 'r') as f:
-                    self.model_config = json.load(f)
-                logger.info("✓ Loaded model configuration")
-            
+                try:
+                    with open(config_file, 'r') as f:
+                        self.model_config = json.load(f)
+                    logger.info("✓ Loaded model configuration")
+                except Exception as e:
+                    logger.debug(f"Failed to load config: {e}")
+
             # Load metrics
             metrics_file = self.model_path / 'dids_metrics.json'
             if metrics_file.exists():
-                with open(metrics_file, 'r') as f:
-                    self.metrics = json.load(f)
-                logger.info("✓ Loaded model metrics")
-            
-            logger.info("AI Detection Service initialized successfully")
+                try:
+                    with open(metrics_file, 'r') as f:
+                        self.metrics = json.load(f)
+                    logger.info("✓ Loaded model metrics")
+                except Exception as e:
+                    logger.debug(f"Failed to load metrics: {e}")
+
+            logger.info("✓ AI Detection Service initialized successfully")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
+            import traceback
+            logger.debug(f"Traceback: {traceback.format_exc()}")
             return False
+
+    def _create_fallback_label_encoder(self):
+        """Create a fallback label encoder with common attack types"""
+        try:
+            from sklearn.preprocessing import LabelEncoder
+            self.label_encoder = LabelEncoder()
+            # Common attack types from CICIDS2017 dataset
+            self.label_encoder.classes_ = np.array([
+                'Benign', 'DDoS', 'PortScan', 'Bot', 'Infiltration',
+                'Web Attack', 'Brute Force', 'DoS Hulk', 'DoS GoldenEye',
+                'DoS slowloris', 'DoS Slowhttptest', 'FTP-Patator',
+                'SSH-Patator', 'Heartbleed'
+            ])
+            logger.info(f"✓ Created fallback label encoder with {len(self.label_encoder.classes_)} classes")
+        except Exception as e:
+            logger.error(f"Failed to create fallback label encoder: {e}")
+
+    def _create_fallback_features(self):
+        """Create fallback feature list based on model input shape"""
+        try:
+            if self.model:
+                # Get expected input shape from model
+                input_shape = self.model.input_shape
+                if input_shape and len(input_shape) > 1:
+                    num_features = input_shape[1]
+                    self.feature_names = [f'feature_{i}' for i in range(num_features)]
+                    logger.info(f"✓ Created {num_features} fallback feature names")
+                else:
+                    logger.warning("Could not determine model input shape")
+        except Exception as e:
+            logger.error(f"Failed to create fallback features: {e}")
     
     def extract_flow_features(self, packet_data: Dict[str, Any]) -> Optional[Dict[str, float]]:
         """
@@ -617,6 +713,14 @@ class AIDetectionService:
     
     def is_ready(self) -> bool:
         """Check if AI detection service is ready"""
-        return (self.model is not None and 
-                self.label_encoder is not None and 
-                self.feature_names is not None)
+        # Only require model to be loaded, others can use fallbacks
+        is_model_ready = self.model is not None
+        has_encoder = self.label_encoder is not None
+        has_features = self.feature_names is not None
+
+        if is_model_ready and not has_encoder:
+            logger.warning("Model ready but label encoder missing - using fallback")
+        if is_model_ready and not has_features:
+            logger.warning("Model ready but feature names missing - using fallback")
+
+        return is_model_ready
