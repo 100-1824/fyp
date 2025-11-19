@@ -1,4 +1,4 @@
-from scapy.all import sniff, IP, TCP, UDP, DNS
+from scapy.all import sniff, IP, TCP, UDP, DNS, Raw, ICMP
 from threading import Event, Thread
 from datetime import datetime
 from collections import defaultdict
@@ -12,11 +12,12 @@ logger = logging.getLogger(__name__)
 
 
 class PacketCaptureService:
-    """Service for capturing and analyzing network packets"""
+    """Service for capturing and analyzing network packets with AI detection"""
     
-    def __init__(self, config, threat_service=None):
+    def __init__(self, config, threat_service=None, ai_service=None):
         self.config = config
         self.threat_service = threat_service
+        self.ai_service = ai_service
         
         # Use get() method for Flask config object with defaults
         self.max_traffic_size = config.get('TRAFFIC_DATA_MAX_SIZE', 1000)
@@ -29,12 +30,21 @@ class PacketCaptureService:
             'total_packets': 0,
             'protocol_dist': defaultdict(int),
             'top_talkers': defaultdict(int),
-            'threats_blocked': 0
+            'threats_blocked': 0,
+            'ai_detections': 0
         }
         self.capture_event = Event()
         self.capture_active = True
         self.demo_mode = False
         self.demo_thread = None
+        
+        # Flow tracker for AI detection
+        if self.ai_service and self.ai_service.is_ready():
+            from services.flow_tracker import FlowTracker
+            self.flow_tracker = FlowTracker(flow_timeout=120, max_flows=10000)
+            logger.info("✓ Flow tracker initialized for AI detection")
+        else:
+            self.flow_tracker = None
     
     def get_active_interface(self) -> str:
         """
@@ -65,9 +75,74 @@ class PacketCaptureService:
         
         return self.default_interface
     
+    def extract_packet_info(self, pkt) -> Optional[Dict[str, Any]]:
+        """Extract comprehensive packet information including flags and ports"""
+        if IP not in pkt:
+            return None
+        
+        packet_info = {
+            'source': pkt[IP].src,
+            'destination': pkt[IP].dst,
+            'size': len(pkt),
+            'protocol': pkt.sprintf("%IP.proto%"),
+            'src_port': 0,
+            'dst_port': 0,
+            'fin': 0,
+            'syn': 0,
+            'rst': 0,
+            'psh': 0,
+            'ack': 0,
+            'urg': 0,
+            'ece': 0,
+            'cwr': 0
+        }
+        
+        # Extract TCP information
+        if TCP in pkt:
+            packet_info['protocol'] = 'TCP'
+            packet_info['src_port'] = pkt[TCP].sport
+            packet_info['dst_port'] = pkt[TCP].dport
+            
+            # Extract TCP flags
+            flags = pkt[TCP].flags
+            packet_info['fin'] = 1 if flags & 0x01 else 0
+            packet_info['syn'] = 1 if flags & 0x02 else 0
+            packet_info['rst'] = 1 if flags & 0x04 else 0
+            packet_info['psh'] = 1 if flags & 0x08 else 0
+            packet_info['ack'] = 1 if flags & 0x10 else 0
+            packet_info['urg'] = 1 if flags & 0x20 else 0
+            packet_info['ece'] = 1 if flags & 0x40 else 0
+            packet_info['cwr'] = 1 if flags & 0x80 else 0
+            
+            # Identify common services
+            if packet_info['dst_port'] == 80:
+                packet_info['protocol'] = 'HTTP'
+            elif packet_info['dst_port'] == 443:
+                packet_info['protocol'] = 'HTTPS'
+            elif packet_info['dst_port'] == 22:
+                packet_info['protocol'] = 'SSH'
+            elif packet_info['dst_port'] in [20, 21]:
+                packet_info['protocol'] = 'FTP'
+        
+        # Extract UDP information
+        elif UDP in pkt:
+            packet_info['protocol'] = 'UDP'
+            packet_info['src_port'] = pkt[UDP].sport
+            packet_info['dst_port'] = pkt[UDP].dport
+            
+            # Identify DNS
+            if packet_info['dst_port'] == 53 or packet_info['src_port'] == 53:
+                packet_info['protocol'] = 'DNS'
+        
+        # ICMP
+        elif ICMP in pkt:
+            packet_info['protocol'] = 'ICMP'
+        
+        return packet_info
+    
     def analyze_packet(self, pkt) -> Optional[Dict[str, Any]]:
         """
-        Analyze a captured packet for threats and statistics.
+        Analyze a captured packet for threats using both signature and AI detection.
         
         Args:
             pkt: Scapy packet object
@@ -78,47 +153,81 @@ class PacketCaptureService:
         if IP not in pkt:
             return None
         
-        src = pkt[IP].src
-        dst = pkt[IP].dst
-        proto = pkt.sprintf("%IP.proto%")
-        size = len(pkt)
+        # Extract packet information
+        packet_info = self.extract_packet_info(pkt)
+        if not packet_info:
+            return None
+        
+        src = packet_info['source']
+        dst = packet_info['destination']
+        proto = packet_info['protocol']
+        size = packet_info['size']
         
         # Update statistics
         self.stats['total_packets'] += 1
         self.stats['protocol_dist'][proto] += 1
         self.stats['top_talkers'][src] += size
         
-        # Check for threats if threat service is available
+        # Initialize threat flags
         threat_detected = False
-        if self.threat_service:
-            threat_detected = self._check_threats(pkt, src, dst)
+        ai_detection = None
+        signature_detection = None
         
-        return {
+        # 1. Check signature-based threats if threat service is available
+        if self.threat_service:
+            signature_detection = self._check_signature_threats(pkt, packet_info, src, dst)
+            if signature_detection:
+                threat_detected = True
+        
+        # 2. Check AI-based threats if AI service is available and ready
+        if self.ai_service and self.ai_service.is_ready() and self.flow_tracker:
+            # Update flow tracker and get aggregated features
+            flow_features = self.flow_tracker.update_flow(packet_info)
+            
+            if flow_features:
+                # Run AI detection on flow features
+                ai_detection = self.ai_service.detect_threat(packet_info)
+                
+                if ai_detection:
+                    threat_detected = True
+                    self.stats['ai_detections'] += 1
+                    logger.info(f"🤖 AI Detection: {ai_detection['attack_type']} "
+                               f"({ai_detection['confidence']}% confidence)")
+        
+        # Create packet record
+        record = {
             'timestamp': datetime.now().strftime("%H:%M:%S.%f")[:-3],
             'source': src,
             'destination': dst,
             'protocol': proto,
             'size': size,
-            'threat': threat_detected
+            'threat': threat_detected,
+            'ai_detection': ai_detection['attack_type'] if ai_detection else None,
+            'ai_confidence': ai_detection['confidence'] if ai_detection else None,
+            'signature_detection': signature_detection
         }
+        
+        return record
     
-    def _check_threats(self, pkt, src: str, dst: str) -> bool:
+    def _check_signature_threats(self, pkt, packet_info: Dict[str, Any], 
+                                 src: str, dst: str) -> Optional[str]:
         """
-        Check packet against threat signatures.
+        Check packet against signature-based threat detection.
         
         Args:
             pkt: Scapy packet object
+            packet_info: Extracted packet information
             src: Source IP address
             dst: Destination IP address
             
         Returns:
-            True if threat detected, False otherwise
+            Threat signature name if detected, None otherwise
         """
-        threat_detected = False
+        threat_signature = None
         
         # Skip if whitelisted
         if self.threat_service.is_whitelisted(src) or self.threat_service.is_whitelisted(dst):
-            return False
+            return None
         
         # Check TCP packets
         if TCP in pkt:
@@ -133,16 +242,17 @@ class PacketCaptureService:
                     {'port': dst_port, 'protocol': 'TCP'}
                 )
                 self.stats['threats_blocked'] += 1
-                threat_detected = True
+                threat_signature = 'ET MALWARE Reverse Shell'
             
             # Check payload for attack patterns
-            if pkt[TCP].payload:
-                payload = bytes(pkt[TCP].payload)
+            if pkt[TCP].payload and Raw in pkt:
+                payload = bytes(pkt[Raw].load)
                 matches = self.threat_service.check_payload_signatures(payload)
                 for signature in matches:
                     self.threat_service.log_threat(signature, src, dst, {'protocol': 'TCP'})
                     self.stats['threats_blocked'] += 1
-                    threat_detected = True
+                    if not threat_signature:
+                        threat_signature = signature
             
             # Port scan detection
             if not self.threat_service.is_whitelisted(dst, dst_port):
@@ -153,7 +263,7 @@ class PacketCaptureService:
                         {'scanned_port': dst_port}
                     )
                     self.stats['threats_blocked'] += 1
-                    threat_detected = True
+                    threat_signature = 'ET SCAN Aggressive Port Scan'
         
         # Check UDP packets
         elif UDP in pkt:
@@ -168,16 +278,17 @@ class PacketCaptureService:
                         {'queries': 'excessive'}
                     )
                     self.stats['threats_blocked'] += 1
-                    threat_detected = True
+                    threat_signature = 'ET DNS Excessive Queries'
             
             # Check payload for attack patterns
-            if pkt[UDP].payload:
-                payload = bytes(pkt[UDP].payload)
+            if pkt[UDP].payload and Raw in pkt:
+                payload = bytes(pkt[Raw].load)
                 matches = self.threat_service.check_payload_signatures(payload)
                 for signature in matches:
                     self.threat_service.log_threat(signature, src, dst, {'protocol': 'UDP'})
                     self.stats['threats_blocked'] += 1
-                    threat_detected = True
+                    if not threat_signature:
+                        threat_signature = signature
             
             # Check for suspicious ports
             suspicious_ports = [4444, 5555, 6666, 7777]
@@ -188,9 +299,9 @@ class PacketCaptureService:
                     {'port': dst_port, 'protocol': 'UDP'}
                 )
                 self.stats['threats_blocked'] += 1
-                threat_detected = True
+                threat_signature = 'ET MALWARE Reverse Shell'
         
-        return threat_detected
+        return threat_signature
     
     def store_packet(self, record: Optional[Dict[str, Any]]) -> None:
         """
@@ -205,7 +316,7 @@ class PacketCaptureService:
                 self.traffic_data.pop(0)
     
     def generate_demo_packet(self) -> Dict[str, Any]:
-        """Generate a simulated packet for demo mode"""
+        """Generate a simulated packet for demo mode with realistic attack scenarios"""
         protocols = ['TCP', 'UDP', 'HTTP', 'HTTPS', 'DNS', 'SSH']
         sources = ['192.168.1.100', '192.168.1.101', '192.168.1.102', 
                    '10.0.0.5', '172.16.0.10', '8.8.8.8', '1.1.1.1']
@@ -217,18 +328,30 @@ class PacketCaptureService:
         dst = random.choice(destinations)
         size = random.randint(64, 1500)
         
-        # Occasionally generate a threat
-        threat = random.random() < 0.05  # 5% chance of threat
+        # Occasionally generate threats for demonstration
+        threat = random.random() < 0.08  # 8% chance of threat
+        ai_detection_type = None
+        ai_confidence = None
         
-        if threat and self.threat_service:
-            threat_types = [
-                'ET SCAN Aggressive Port Scan',
-                'ET WEB SQL Injection Attempt',
-                'ET DNS Excessive Queries'
-            ]
-            signature = random.choice(threat_types)
-            self.threat_service.log_threat(signature, src, dst, {'protocol': protocol})
-            self.stats['threats_blocked'] += 1
+        if threat:
+            # Mix of signature and AI detections
+            if random.random() < 0.5 and self.threat_service:
+                # Signature-based threat
+                threat_types = [
+                    'ET SCAN Aggressive Port Scan',
+                    'ET WEB SQL Injection Attempt',
+                    'ET DNS Excessive Queries'
+                ]
+                signature = random.choice(threat_types)
+                self.threat_service.log_threat(signature, src, dst, {'protocol': protocol})
+                self.stats['threats_blocked'] += 1
+            
+            else:
+                # AI-based threat (for demo)
+                attack_types = ['DDoS', 'PortScan', 'Bot', 'Web Attack', 'Brute Force']
+                ai_detection_type = random.choice(attack_types)
+                ai_confidence = random.uniform(75, 99)
+                self.stats['ai_detections'] += 1
         
         # Update statistics
         self.stats['total_packets'] += 1
@@ -241,7 +364,10 @@ class PacketCaptureService:
             'destination': dst,
             'protocol': protocol,
             'size': size,
-            'threat': threat
+            'threat': threat,
+            'ai_detection': ai_detection_type,
+            'ai_confidence': ai_confidence,
+            'signature_detection': None
         }
     
     def run_demo_mode(self) -> None:
@@ -341,6 +467,7 @@ class PacketCaptureService:
         return {
             'total_packets': self.stats['total_packets'],
             'threats_blocked': self.stats['threats_blocked'],
+            'ai_detections': self.stats['ai_detections'],
             'protocols': dict(self.stats['protocol_dist']),
             'top_talkers': dict(sorted(
                 self.stats['top_talkers'].items(),
@@ -356,3 +483,7 @@ class PacketCaptureService:
     def is_demo_mode(self) -> bool:
         """Check if running in demo mode"""
         return self.demo_mode
+    
+    def get_flow_count(self) -> int:
+        """Get number of tracked flows"""
+        return self.flow_tracker.get_flow_count() if self.flow_tracker else 0

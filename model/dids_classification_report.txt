@@ -1,0 +1,32 @@
+CyberHawk IDS - Classification Report
+================================================================================
+
+Overall Metrics:
+  Accuracy:  0.9773
+  Precision: 0.9685
+  Recall:    0.9773
+  F1-Score:  0.9720
+
+                                      precision    recall  f1-score   support
+
+                              BENIGN     0.9931    0.9879    0.9905       579
+                              Botnet     1.0000    1.0000    1.0000       110
+                  Botnet - Attempted     1.0000    1.0000    1.0000       579
+                                DDoS     1.0000    1.0000    1.0000       579
+                       DoS GoldenEye     1.0000    1.0000    1.0000       579
+                            DoS Hulk     0.9983    1.0000    0.9991       579
+                DoS Hulk - Attempted     0.9775    1.0000    0.9886        87
+                    DoS Slowhttptest     1.0000    0.9923    0.9962       261
+        DoS Slowhttptest - Attempted     1.0000    0.9901    0.9950       505
+                       DoS Slowloris     0.9983    0.9965    0.9974       579
+           DoS Slowloris - Attempted     0.9823    1.0000    0.9911       277
+                         FTP-Patator     1.0000    1.0000    1.0000       579
+             Infiltration - Portscan     0.9649    0.9482    0.9564       579
+                            Portscan     0.9508    0.9689    0.9598       579
+                         SSH-Patator     1.0000    1.0000    1.0000       444
+Web Attack - Brute Force - Attempted     0.6565    0.9948    0.7910       194
+        Web Attack - XSS - Attempted     0.0000    0.0000    0.0000        98
+
+                            accuracy                         0.9773      7187
+                           macro avg     0.9130    0.9340    0.9215      7187
+                        weighted avg     0.9685    0.9773    0.9720      7187

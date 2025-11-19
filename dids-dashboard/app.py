@@ -13,7 +13,7 @@ from config import config
 from models import User, Admin
 
 # Import services
-from services import PacketCaptureService, ThreatDetectionService, UserService
+from services import PacketCaptureService, ThreatDetectionService, UserService, AIDetectionService
 
 # Import routes
 from routes import (
@@ -71,21 +71,54 @@ def create_app(config_name='default'):
         return User(user_data) if user_data else None
     
     # Initialize services
-    # IMPORTANT: Initialize threat service first, then pass it to packet service
+    app.logger.info("=" * 70)
+    app.logger.info("🚀 Initializing DIDS Services")
+    app.logger.info("=" * 70)
+    
+    # 1. Initialize threat detection service
+    app.logger.info("1️⃣  Initializing Signature-Based Threat Detection...")
     threat_service = ThreatDetectionService(app.config)
-    packet_service = PacketCaptureService(app.config, threat_service)
+    app.logger.info("✓ Signature-based threat detection ready")
+    
+    # 2. Initialize AI detection service
+    app.logger.info("2️⃣  Initializing AI-Powered Threat Detection...")
+    model_path = os.path.join(os.path.dirname(__file__), 'models')
+    ai_service = AIDetectionService(app.config, model_path=model_path)
+    
+    if ai_service.is_ready():
+        app.logger.info("✓ AI detection service initialized successfully")
+        model_info = ai_service.get_model_info()
+        app.logger.info(f"   📊 Model loaded with {model_info['feature_count']} features")
+        app.logger.info(f"   🎯 Attack types: {', '.join(model_info['attack_types'][:5])}...")
+        if 'accuracy' in model_info:
+            app.logger.info(f"   📈 Model accuracy: {model_info['accuracy']}")
+    else:
+        app.logger.warning("⚠️  AI detection service not ready - will use signature-based only")
+        ai_service = None
+    
+    # 3. Initialize packet capture service (depends on threat and AI services)
+    app.logger.info("3️⃣  Initializing Packet Capture Service...")
+    packet_service = PacketCaptureService(app.config, threat_service, ai_service)
+    app.logger.info("✓ Packet capture service ready")
+    
+    # 4. Initialize user service
     user_service = UserService(mongo, bcrypt)
+    
+    app.logger.info("=" * 70)
+    app.logger.info("✅ All services initialized successfully")
+    app.logger.info("=" * 70)
     
     # Store services in app context for access in routes
     app.packet_service = packet_service
     app.threat_service = threat_service
+    app.ai_service = ai_service
     app.user_service = user_service
     
     # Register blueprints
     auth_bp = init_auth_routes(app, mongo, bcrypt, user_service)
     main_bp = init_main_routes(app, mongo, user_service)
     admin_bp = init_admin_routes(app, user_service)
-    api_bp = init_api_routes(app, packet_service, threat_service)
+    api_bp = init_api_routes(app, packet_service, threat_service, ai_service)
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -99,7 +132,11 @@ def create_app(config_name='default'):
             daemon=True
         )
         capture_thread.start()
-        app.logger.info("Packet capture thread started with enhanced threat detection")
+        
+        if ai_service and ai_service.is_ready():
+            app.logger.info("🔍 Packet capture started with AI-powered threat detection")
+        else:
+            app.logger.info("🔍 Packet capture started with signature-based threat detection")
     
     # Error handlers
     @app.errorhandler(404)
