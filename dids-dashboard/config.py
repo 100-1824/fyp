@@ -24,7 +24,9 @@ class Config:
     TRAFFIC_DATA_MAX_SIZE = 1000
     STATS_HISTORY_SIZE = 100
     THREAT_DETECTION_BUFFER = 20
-    DEFAULT_INTERFACE = 'eth0'
+    # DEFAULT_INTERFACE is a fallback - auto-detection is attempted first
+    # Can be overridden with NETWORK_INTERFACE environment variable
+    DEFAULT_INTERFACE = os.environ.get('NETWORK_INTERFACE') or 'eth0'
     
     # Logging configuration
     LOG_LEVEL = os.environ.get('LOG_LEVEL') or 'INFO'

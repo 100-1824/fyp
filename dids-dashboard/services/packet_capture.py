@@ -1,4 +1,4 @@
-from scapy.all import sniff, IP, TCP, UDP, DNS, Raw, ICMP
+from scapy.all import sniff, IP, TCP, UDP, DNS, Raw, ICMP, get_if_list, conf
 from threading import Event, Thread
 from datetime import datetime
 from collections import defaultdict
@@ -6,6 +6,7 @@ import netifaces
 import logging
 import random
 import time
+import platform
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -48,31 +49,87 @@ class PacketCaptureService:
     
     def get_active_interface(self) -> str:
         """
-        Detect the active network interface.
-        
+        Detect the active network interface cross-platform.
+        Works on Linux, Windows, and macOS.
+
         Returns:
-            Interface name (e.g., 'eth0', 'wlan0')
+            Interface name (e.g., 'eth0' on Linux, GUID on Windows)
         """
+        system = platform.system()
+        logger.info(f"Detecting network interface on {system}")
+
         try:
-            # Try to get default gateway interface
-            gw = netifaces.gateways()
-            if 'default' in gw and netifaces.AF_INET in gw['default']:
-                return gw['default'][netifaces.AF_INET][1]
-        except Exception as e:
-            logger.warning(f"Failed to detect active interface: {e}")
-        
-        # Try to find any active interface
-        try:
-            interfaces = netifaces.interfaces()
-            for iface in interfaces:
-                if iface.startswith(('eth', 'wlan', 'en', 'wl')):
-                    addrs = netifaces.ifaddresses(iface)
-                    if netifaces.AF_INET in addrs:
-                        logger.info(f"Using interface: {iface}")
+            # Get all available interfaces from Scapy (cross-platform)
+            scapy_interfaces = get_if_list()
+            logger.info(f"Available interfaces: {scapy_interfaces}")
+
+            # Try method 1: Use Scapy's default interface (usually the best choice)
+            if hasattr(conf, 'iface') and conf.iface:
+                logger.info(f"Using Scapy default interface: {conf.iface}")
+                return conf.iface
+
+            # Try method 2: Get default gateway interface via netifaces
+            try:
+                gw = netifaces.gateways()
+                if 'default' in gw and netifaces.AF_INET in gw['default']:
+                    interface = gw['default'][netifaces.AF_INET][1]
+                    logger.info(f"Using default gateway interface: {interface}")
+                    return interface
+            except Exception as e:
+                logger.debug(f"Could not get gateway interface: {e}")
+
+            # Try method 3: Find any active interface with an IP address
+            try:
+                interfaces = netifaces.interfaces()
+
+                # Platform-specific interface filtering
+                if system == 'Windows':
+                    # On Windows, accept GUID format interfaces
+                    for iface in interfaces:
+                        # Windows interfaces can be GUIDs or names
+                        try:
+                            addrs = netifaces.ifaddresses(iface)
+                            if netifaces.AF_INET in addrs:
+                                # Skip loopback
+                                ip = addrs[netifaces.AF_INET][0].get('addr', '')
+                                if not ip.startswith('127.'):
+                                    logger.info(f"Using interface: {iface}")
+                                    return iface
+                        except Exception as e:
+                            logger.debug(f"Error checking interface {iface}: {e}")
+                            continue
+                else:
+                    # On Linux/macOS, prefer common interface naming patterns
+                    for iface in interfaces:
+                        if iface.startswith(('eth', 'wlan', 'en', 'wl', 'wlp', 'enp', 'ens')):
+                            try:
+                                addrs = netifaces.ifaddresses(iface)
+                                if netifaces.AF_INET in addrs:
+                                    logger.info(f"Using interface: {iface}")
+                                    return iface
+                            except Exception as e:
+                                logger.debug(f"Error checking interface {iface}: {e}")
+                                continue
+            except Exception as e:
+                logger.warning(f"Failed to enumerate interfaces: {e}")
+
+            # Try method 4: Use first available Scapy interface (last resort)
+            if scapy_interfaces and len(scapy_interfaces) > 0:
+                # Filter out loopback if possible
+                for iface in scapy_interfaces:
+                    if not iface.lower().startswith(('lo', 'loopback')):
+                        logger.info(f"Using first non-loopback Scapy interface: {iface}")
                         return iface
+
+                # If all interfaces are loopback, use the first one
+                logger.warning(f"Only loopback interfaces found, using: {scapy_interfaces[0]}")
+                return scapy_interfaces[0]
+
         except Exception as e:
-            logger.warning(f"Failed to find active interface: {e}")
-        
+            logger.error(f"Failed to detect active interface: {e}")
+
+        # Final fallback
+        logger.warning(f"Could not detect interface, using default: {self.default_interface}")
         return self.default_interface
     
     def extract_packet_info(self, pkt) -> Optional[Dict[str, Any]]:
@@ -388,9 +445,16 @@ class PacketCaptureService:
     def capture_packets(self) -> None:
         """Start packet capture on the active interface"""
         interface = self.get_active_interface()
-        logger.info(f"Attempting to start packet capture on {interface}")
-        
+        logger.info(f"Attempting to start packet capture on interface: {interface}")
+
         try:
+            # Validate interface exists in Scapy's interface list
+            available_interfaces = get_if_list()
+            if interface not in available_interfaces:
+                logger.warning(f"Interface '{interface}' not found in Scapy's interface list")
+                logger.warning(f"Available interfaces: {available_interfaces}")
+                raise OSError(f"Interface '{interface}' not found!")
+
             # Try to start real packet capture
             logger.info("Starting real packet capture with Scapy...")
             sniff(
@@ -400,18 +464,24 @@ class PacketCaptureService:
                 stop_filter=lambda p: self.capture_event.is_set(),
                 timeout=5  # Test for 5 seconds first
             )
-            logger.info("Real packet capture started successfully")
-            
+            logger.info("✓ Real packet capture started successfully")
+
         except PermissionError as e:
             logger.error(f"Permission denied for packet capture: {e}")
             logger.info("Switching to DEMO MODE - please run with elevated privileges for real capture")
+            logger.info("On Windows: Run as Administrator | On Linux/Mac: Use sudo")
             self.run_demo_mode()
-            
+
         except OSError as e:
-            logger.error(f"OS error during packet capture: {e}")
-            logger.info("Switching to DEMO MODE - network interface may not be accessible")
+            error_msg = str(e)
+            if "not found" in error_msg.lower():
+                logger.error(f"Packet capture error: Interface '{interface}' not found!")
+                logger.info(f"Available interfaces: {get_if_list()}")
+            else:
+                logger.error(f"OS error during packet capture: {e}")
+            logger.info("Switching to DEMO MODE - unable to capture real packets")
             self.run_demo_mode()
-            
+
         except Exception as e:
             logger.error(f"Packet capture error: {e}")
             logger.info("Switching to DEMO MODE - unable to capture real packets")
