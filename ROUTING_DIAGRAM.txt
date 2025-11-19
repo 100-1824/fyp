@@ -1,0 +1,342 @@
+================================================================================
+                    DIDS DASHBOARD ROUTING ARCHITECTURE
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         FLASK APPLICATION FACTORY                          │
+│                              (app.py)                                       │
+│  - Initialize Services (Packet Capture, Threat Detection, AI Detection)     │
+│  - Register Blueprints                                                      │
+│  - Configure Extensions (MongoDB, BCrypt, Login Manager)                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      |
+                    ┌─────────────────┼─────────────────┐
+                    |                 |                 |
+          ┌─────────▼────────┐ ┌─────▼──────────┐ ┌─────▼──────────┐
+          │  AUTH BLUEPRINT  │ │  MAIN ROUTES   │ │ ADMIN ROUTES   │
+          │  (routes/auth.py)│ │ (routes/main.py)│ │(routes/admin.py)│
+          │                  │ │                │ │                │
+          │ /login           │ │ /              │ │ /admin/...     │
+          │ /register        │ │ /ai-detection  │ │ (DELETE/TOGGLE)│
+          │ /logout          │ │ /admin         │ │                │
+          │ /change-password │ │                │ │ @admin_required│
+          │ /forgot-password │ │ @login_required│ │                │
+          │                  │ │                │ │                │
+          └────────────────────┴────────────────────┴──────────────────┘
+                    |
+        ┌───────────▼────────────────┐
+        │   API BLUEPRINT            │
+        │   (routes/api.py)          │
+        │   PREFIX: /api             │
+        │                            │
+        │ /api/current_user          │
+        │ /api/traffic               │
+        │ /api/stats                 │
+        │ /api/threats               │
+        │ /api/threat-stats          │
+        │ /api/ai-detections         │
+        │ /api/ai-stats              │
+        │ /api/ai-model-info         │
+        │ /api/combined-threats      │
+        │ /api/capture/status        │
+        │ /api/capture/toggle        │
+        │ /api/network-health        │
+        │ /api/signatures            │
+        │ /api/ai-threshold          │
+        │ /api/detection-overview    │
+        │                            │
+        │ All require @login_required│
+        └────────────────────────────┘
+
+
+================================================================================
+                          PAGE ROUTING FLOW
+================================================================================
+
+PUBLIC PAGES (No Login Required):
+┌────────────┐
+│   LOGIN    │ (/login)
+│  REGISTER  │ (/register)
+│FORGOT PASS │ (/forgot-password)
+└────────────┘
+
+
+AUTHENTICATED PAGES (Login Required):
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         SIDEBAR NAVIGATION                                   │
+│  All pages contain the same sidebar with menu items:                         │
+│  - Dashboard (/)                                                             │
+│  - AI Detection (/ai-detection)                                              │
+│  - Network Traffic (#) [NOT IMPLEMENTED]                                     │
+│  - Threats (#) [NOT IMPLEMENTED]                                             │
+│  - Analytics (#) [NOT IMPLEMENTED]                                           │
+│  - User Management (/admin) [ADMIN ONLY]                                     │
+│  - Change Password (/change-password)                                        │
+│  - Settings (#) [NOT IMPLEMENTED]                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+DASHBOARD FLOW:
+┌────────────────────────────────────────────────────────────────────────────┐
+│ "/" Route Handler (main.dashboard)                                         │
+│ ├─ Renders: index.html                                                     │
+│ ├─ Required Auth: Yes                                                      │
+│ └─ Logic: If admin → redirect to /admin                                    │
+│                                                                            │
+│ index.html (28KB)                                                         │
+│ ├─ Sidebar Component (fixed 260px)                                        │
+│ ├─ Top Bar with menu toggle                                               │
+│ └─ Dashboard Content:                                                      │
+│    ├─ Stats Grid (4 cards)                                               │
+│    │  ├─ Packets/Sec (PPS)                                               │
+│    │  ├─ Total Packets                                                   │
+│    │  ├─ Threats Detected (Signature + AI)                               │
+│    │  └─ Top Talker                                                      │
+│    ├─ Live Network Traffic Table                                         │
+│    │  └─ Updates from /api/traffic every 1 second                        │
+│    ├─ Protocol Distribution Chart (Doughnut)                             │
+│    │  └─ Updates from /api/stats every 2 seconds                         │
+│    └─ Recent Threats Panel                                               │
+│       └─ Updates from /api/combined-threats every 3 seconds              │
+│                                                                            │
+│ JavaScript Features:                                                       │
+│ ├─ Sidebar toggle (desktop collapse / mobile open)                       │
+│ ├─ Real-time data fetching from /api/ endpoints                          │
+│ ├─ Chart.js for protocol distribution                                    │
+│ ├─ Capture toggle button (/api/capture/toggle)                           │
+│ └─ Threat detection method badges (AI vs Signature)                      │
+└────────────────────────────────────────────────────────────────────────────┘
+
+AI DETECTION FLOW:
+┌────────────────────────────────────────────────────────────────────────────┐
+│ "/ai-detection" Route Handler (main.ai_detection)                          │
+│ ├─ Renders: ai_detection.html                                             │
+│ ├─ Required Auth: Yes                                                      │
+│ └─ Role: User/Admin (Both can access)                                      │
+│                                                                            │
+│ ai_detection.html (35KB)                                                  │
+│ ├─ Sidebar Component (fixed 260px)                                        │
+│ ├─ Top Bar with AI badge                                                  │
+│ └─ AI Detection Content:                                                   │
+│    ├─ AI Model Status Card                                               │
+│    │  └─ Updates from /api/ai-model-info                                 │
+│    ├─ AI Statistics Cards                                                │
+│    │  ├─ Total Detections                                                │
+│    │  ├─ High Confidence Count                                           │
+│    │  ├─ Average Confidence Score                                        │
+│    │  └─ Updates from /api/ai-stats                                      │
+│    ├─ Confidence Threshold Slider                                        │
+│    │  └─ POST to /api/ai-threshold                                       │
+│    ├─ AI Detections Table                                                │
+│    │  └─ Updates from /api/ai-detections every 2 seconds                 │
+│    ├─ Attack Type Distribution Chart                                     │
+│    │  └─ Updates from /api/ai-stats                                      │
+│    └─ Detection Overview Panel                                           │
+│       ├─ Signature-based count                                           │
+│       ├─ AI-based count                                                  │
+│       └─ Updates from /api/detection-overview                            │
+│                                                                            │
+│ JavaScript Features:                                                       │
+│ ├─ Real-time AI model status monitoring                                  │
+│ ├─ Confidence threshold adjustment                                       │
+│ ├─ Attack type categorization and visualization                          │
+│ └─ Comparison of signature vs AI detection methods                       │
+└────────────────────────────────────────────────────────────────────────────┘
+
+ADMIN DASHBOARD FLOW:
+┌────────────────────────────────────────────────────────────────────────────┐
+│ "/admin" Route Handler (main.admin_dashboard)                              │
+│ ├─ Renders: admin.html                                                    │
+│ ├─ Required Auth: Yes                                                      │
+│ ├─ Role: Admin Only                                                       │
+│ └─ @admin_required decorator enforces access                              │
+│                                                                            │
+│ admin.html                                                                │
+│ ├─ Header with title "Admin Dashboard"                                   │
+│ └─ User Management Content:                                               │
+│    ├─ User Statistics Panel                                              │
+│    │  └─ Total users, active users, etc.                                │
+│    ├─ User Management Table:                                             │
+│    │  ├─ Delete User (/admin/delete-user/<id>) [POST]                    │
+│    │  ├─ Toggle User (/admin/toggle-user/<id>) [POST]                    │
+│    │  ├─ Edit User (/admin/edit-user/<id>) [GET/POST]                    │
+│    │  └─ Admin-only operations                                           │
+│    └─ User statistics and activity logs                                  │
+│                                                                            │
+│ Note: Admin users are redirected here from dashboard (/)                  │
+└────────────────────────────────────────────────────────────────────────────┘
+
+CHANGE PASSWORD FLOW:
+┌────────────────────────────────────────────────────────────────────────────┐
+│ "/change-password" Route Handler (auth.change_password)                    │
+│ ├─ Renders: change_password.html                                          │
+│ ├─ Required Auth: Yes                                                      │
+│ └─ Role: User/Admin (Both can change)                                      │
+│                                                                            │
+│ change_password.html                                                      │
+│ ├─ Form with:                                                             │
+│ │  ├─ Current Password field                                             │
+│ │  ├─ New Password field                                                 │
+│ │  ├─ Confirm Password field                                             │
+│ │  └─ Submit button                                                      │
+│ └─ Validation:                                                            │
+│    ├─ Admin: Check against ADMIN_PASSWORD_HASH                           │
+│    └─ Users: Verify via UserService.change_password()                    │
+└────────────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+                    IMPLEMENTED vs UNIMPLEMENTED MODULES
+================================================================================
+
+IMPLEMENTED (Functional):
+✅ Dashboard (/)
+   - Template: index.html
+   - Route: main.dashboard
+   - Status: LIVE with real-time updates
+
+✅ AI Detection (/ai-detection)
+   - Template: ai_detection.html
+   - Route: main.ai_detection
+   - Status: LIVE with AI model integration
+
+✅ User Management (/admin)
+   - Template: admin.html
+   - Route: main.admin_dashboard
+   - Status: LIVE (Admin only)
+
+✅ Change Password (/change-password)
+   - Template: change_password.html
+   - Route: auth.change_password
+   - Status: LIVE
+
+✅ Authentication Pages
+   - Login (/login), Register (/register), Logout
+   - Forgot Password (/forgot-password)
+   - Status: LIVE
+
+
+UNIMPLEMENTED (Placeholders with href="#"):
+❌ Network Traffic
+   - Sidebar Menu: Line 552-555 (index.html)
+   - Route: None
+   - Template: None
+   - Data Available: /api/traffic, /api/stats, /api/network-health
+
+❌ Threats
+   - Sidebar Menu: Line 556-559 (index.html)
+   - Route: None
+   - Template: None
+   - Data Available: /api/threats, /api/combined-threats, /api/threat-stats
+
+❌ Analytics
+   - Sidebar Menu: Line 560-563 (index.html)
+   - Route: None
+   - Template: None
+   - Data Available: /api/stats, /api/network-health, /api/detection-overview
+
+❌ Settings
+   - Sidebar Menu: Line 574-577 (index.html)
+   - Route: None
+   - Template: None
+   - Potential Features: AI threshold, capture settings, alert configuration
+
+
+================================================================================
+                         TEMPLATE DEPENDENCIES
+================================================================================
+
+SHARED ACROSS TEMPLATES:
+- Font: Inter (Google Fonts)
+- Icons: Font Awesome 6.4.0 (CDN)
+- Charts: Chart.js 3.9.1 (CDN)
+- Sidebar HTML structure (duplicated in each file)
+- CSS color variables (consistent theme)
+
+TEMPLATE FILES:
+├── index.html (28,331 bytes) - Dashboard
+├── ai_detection.html (34,619 bytes) - AI Detection
+├── admin.html (5,236 bytes) - Admin Dashboard
+├── login.html (7,918 bytes) - Login page
+├── registration.html (7,381 bytes) - Registration
+├── change_password.html (7,870 bytes) - Change password
+├── forgot_password.html (3,630 bytes) - Password reset
+└── static/
+    └── style.css (254 bytes) - Additional styles
+
+
+================================================================================
+                        AUTHENTICATION FLOW
+================================================================================
+
+1. UNAUTHENTICATED USER
+   ├─ Tries to access protected page (/)
+   ├─ @login_required redirects to /login
+   └─ Presents login form
+
+2. LOGIN PROCESS
+   ├─ Check if username is admin
+   │  └─ Verify ADMIN_PASSWORD_HASH
+   │     └─ Create Admin object and login
+   └─ Check regular user database
+      └─ Verify via UserService.verify_credentials()
+         └─ Create User object and login
+
+3. POST-LOGIN
+   ├─ Admin user → Redirect to /admin
+   └─ Regular user → Redirect to /
+
+4. SESSION MANAGEMENT
+   ├─ Flask-Login manages user_loader
+   └─ @login_required decorator on protected routes
+
+5. LOGOUT
+   ├─ User clicks logout in sidebar
+   └─ Routes to /logout → logout_user()
+
+
+================================================================================
+                         SERVICE ARCHITECTURE
+================================================================================
+
+SERVICES CALLED BY ROUTES:
+┌─────────────────────────────────────────┐
+│        app.packet_service               │ (PacketCaptureService)
+│        app.threat_service               │ (ThreatDetectionService)
+│        app.ai_service                   │ (AIDetectionService)
+│        app.user_service                 │ (UserService)
+└─────────────────────────────────────────┘
+            |
+    ┌───────┼───────┬──────────┐
+    |       |       |          |
+ TRAFFIC  THREATS  AI-DET     USERS
+
+
+API ENDPOINTS → SERVICE METHODS:
+/api/traffic ──────────────────→ packet_service.get_traffic_data()
+/api/stats ────────────────────→ packet_service.get_stats()
+/api/threats ──────────────────→ threat_service.get_recent_threats()
+/api/ai-detections ───────────→ ai_service.get_recent_detections()
+/api/combined-threats ────────→ threat_service + ai_service (combined)
+/api/network-health ──────────→ packet_service + threat_service (calculated)
+/api/detection-overview ──────→ threat_service + ai_service (overview)
+/api/current_user ────────────→ current_user (Flask-Login)
+
+
+================================================================================
+                       RESPONSIVE DESIGN
+================================================================================
+
+DESKTOP (>768px):
+- Sidebar: Always visible (260px fixed)
+- Toggle: Collapse/Expand sidebar
+- Main content: Takes remaining space
+
+MOBILE (≤768px):
+- Sidebar: Hidden by default
+- Menu button: Shows in top bar
+- Toggle: Open/Close sidebar overlay
+- Main content: Full width
+
+
+================================================================================

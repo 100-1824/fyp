@@ -560,15 +560,11 @@
                 <i class="fas fa-brain"></i>
                 <span>AI Detection</span>
             </a>
-            <a href="#" class="nav-item">
-                <i class="fas fa-network-wired"></i>
-                <span>Network Traffic</span>
-            </a>
-            <a href="#" class="nav-item">
+            <a href="{{ url_for('main.threats') }}" class="nav-item">
                 <i class="fas fa-shield-virus"></i>
                 <span>Threats</span>
             </a>
-            <a href="#" class="nav-item">
+            <a href="{{ url_for('main.analytics') }}" class="nav-item">
                 <i class="fas fa-chart-line"></i>
                 <span>Analytics</span>
             </a>
@@ -582,7 +578,7 @@
                 <i class="fas fa-key"></i>
                 <span>Change Password</span>
             </a>
-            <a href="#" class="nav-item">
+            <a href="{{ url_for('main.settings') }}" class="nav-item">
                 <i class="fas fa-cog"></i>
                 <span>Settings</span>
             </a>
