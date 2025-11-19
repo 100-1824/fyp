@@ -1,1 +1,10 @@
 flask
+flask-pymongo
+flask-bcrypt
+flask-login
+numpy
+pandas
+scikit-learn
+tensorflow
+scapy
+python-dotenv

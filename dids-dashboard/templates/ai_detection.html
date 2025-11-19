@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Detection - DIDS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --text-dark: #0f172a;
+            --text-light: #64748b;
+            --bg-light: #f8fafc;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #06b6d4;
+            --sidebar-width: 260px;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-light);
+            color: var(--text-dark);
+            overflow-x: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: white;
+            border-right: 1px solid var(--border);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(calc(-1 * var(--sidebar-width)));
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo i {
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 20px;
+        }
+
+        .logo-text {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .sidebar-close {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: var(--text-light);
+            cursor: pointer;
+        }
+
+        .nav-menu {
+            flex: 1;
+            padding: 16px 0;
+            overflow-y: auto;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            color: var(--text-light);
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .nav-item:hover {
+            background: var(--bg-light);
+            color: var(--text-dark);
+        }
+
+        .nav-item.active {
+            background: var(--bg-light);
+            color: var(--primary);
+            border-right: 3px solid var(--primary);
+        }
+
+        .nav-item i {
+            width: 20px;
+            font-size: 18px;
+        }
+
+        .user-section {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-weight: 600;
+        }
+
+        .user-info {
+            flex: 1;
+        }
+
+        .user-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .user-role {
+            font-size: 12px;
+            color: var(--text-light);
+        }
+
+        .logout-btn {
+            background: none;
+            border: none;
+            color: var(--text-light);
+            cursor: pointer;
+            padding: 8px;
+        }
+
+        .logout-btn:hover {
+            color: var(--danger);
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
+            transition: margin-left 0.3s ease;
+        }
+
+        .main-content.expanded {
+            margin-left: 0;
+        }
+
+        /* Top Bar */
+        .top-bar {
+            background: white;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .top-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .menu-toggle {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: var(--text-dark);
+            cursor: pointer;
+            padding: 8px;
+        }
+
+        .page-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .ai-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Dashboard Content */
+        .dashboard {
+            padding: 24px;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 24px;
+        }
+
+        .stat-icon.primary { background: #dbeafe; color: var(--primary); }
+        .stat-icon.success { background: #d1fae5; color: var(--success); }
+        .stat-icon.danger { background: #fee2e2; color: var(--danger); }
+        .stat-icon.warning { background: #fef3c7; color: var(--warning); }
+        .stat-icon.info { background: #cffafe; color: var(--info); }
+
+        .stat-label {
+            font-size: 13px;
+            color: var(--text-light);
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .stat-trend {
+            font-size: 12px;
+            color: var(--success);
+            margin-top: 4px;
+        }
+
+        /* Card */
+        .card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+        }
+
+        .card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        /* Model Info Grid */
+        .model-info-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .info-item {
+            padding: 16px;
+            background: var(--bg-light);
+            border-radius: 6px;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: var(--text-light);
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+
+        .info-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        /* Table */
+        .table-container {
+            overflow-x: auto;
+            max-height: 500px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            background: var(--bg-light);
+        }
+
+        th {
+            padding: 12px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-light);
+            text-transform: uppercase;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+
+        tbody tr:hover {
+            background: var(--bg-light);
+        }
+
+        /* Badges */
+        .severity-badge, .confidence-badge, .action-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .severity-critical { background: #fee2e2; color: #991b1b; }
+        .severity-high { background: #fed7aa; color: #9a3412; }
+        .severity-medium { background: #fef3c7; color: #92400e; }
+        .severity-low { background: #dbeafe; color: #1e40af; }
+
+        .confidence-badge {
+            background: var(--bg-light);
+            color: var(--text-dark);
+        }
+
+        .action-blocked { background: #fee2e2; color: #991b1b; }
+        .action-alert { background: #fef3c7; color: #92400e; }
+        .action-logged { background: #dbeafe; color: #1e40af; }
+
+        /* Chart */
+        .chart-box {
+            height: 300px;
+            position: relative;
+        }
+
+        /* Settings Panel */
+        .settings-panel {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .setting-item {
+            padding: 16px;
+            background: var(--bg-light);
+            border-radius: 6px;
+        }
+
+        .setting-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 8px;
+        }
+
+        .setting-description {
+            font-size: 12px;
+            color: var(--text-light);
+            margin-bottom: 12px;
+        }
+
+        .threshold-input {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .threshold-input input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .threshold-input button {
+            padding: 8px 16px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .threshold-input button:hover {
+            background: var(--primary-dark);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-light);
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 12px;
+            opacity: 0.3;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .stats-grid, .model-info-grid, .settings-panel {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(calc(-1 * var(--sidebar-width)));
+            }
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+            .sidebar-close {
+                display: block;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+            .stats-grid, .model-info-grid, .settings-panel {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-light);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-light);
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <i class="fas fa-shield-alt"></i>
+                <span class="logo-text">DIDS</span>
+            </div>
+            <button class="sidebar-close" onclick="toggleSidebar()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <nav class="nav-menu">
+            <a href="{{ url_for('main.dashboard') }}" class="nav-item">
+                <i class="fas fa-home"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="{{ url_for('main.ai_detection') }}" class="nav-item active">
+                <i class="fas fa-brain"></i>
+                <span>AI Detection</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="fas fa-network-wired"></i>
+                <span>Network Traffic</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="fas fa-shield-virus"></i>
+                <span>Threats</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="fas fa-chart-line"></i>
+                <span>Analytics</span>
+            </a>
+            {% if current_user.role == 'admin' %}
+            <a href="{{ url_for('main.admin_dashboard') }}" class="nav-item">
+                <i class="fas fa-users-cog"></i>
+                <span>User Management</span>
+            </a>
+            {% endif %}
+            <a href="{{ url_for('auth.change_password') }}" class="nav-item">
+                <i class="fas fa-key"></i>
+                <span>Change Password</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="fas fa-cog"></i>
+                <span>Settings</span>
+            </a>
+        </nav>
+
+        <div class="user-section">
+            <div class="user-avatar" id="user-avatar">U</div>
+            <div class="user-info">
+                <div class="user-name" id="current-user">Loading...</div>
+                <div class="user-role">{{ current_user.role|capitalize }}</div>
+            </div>
+            <a href="{{ url_for('auth.logout') }}">
+                <button class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content" id="mainContent">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <div class="top-left">
+                <button class="menu-toggle" onclick="toggleSidebar()">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h1 class="page-title">
+                    <i class="fas fa-brain" style="color: var(--primary);"></i>
+                    AI-Powered Threat Detection
+                </h1>
+                <span class="ai-badge">
+                    <span class="status-indicator"></span>
+                    AI Active
+                </span>
+            </div>
+        </div>
+
+        <!-- Dashboard Content -->
+        <div class="dashboard">
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div>
+                            <div class="stat-label">AI DETECTIONS</div>
+                            <div class="stat-value" id="total-detections">0</div>
+                        </div>
+                        <div class="stat-icon primary">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div>
+                            <div class="stat-label">HIGH CONFIDENCE</div>
+                            <div class="stat-value" id="high-confidence">0</div>
+                        </div>
+                        <div class="stat-icon success">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div>
+                            <div class="stat-label">AVG CONFIDENCE</div>
+                            <div class="stat-value" id="avg-confidence">0%</div>
+                        </div>
+                        <div class="stat-icon info">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div>
+                            <div class="stat-label">MODEL STATUS</div>
+                            <div class="stat-value" style="font-size: 16px;" id="model-status">Loading...</div>
+                        </div>
+                        <div class="stat-icon warning">
+                            <i class="fas fa-server"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Model Information -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-info-circle"></i>
+                        Model Information
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="model-info-grid" id="model-info">
+                        <div class="empty-state">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <p>Loading model info...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <!-- Attack Type Distribution -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-chart-pie"></i>
+                            Attack Type Distribution
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-box">
+                            <canvas id="attackChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Severity Distribution -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Severity Distribution
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-box">
+                            <canvas id="severityChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent AI Detections -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-history"></i>
+                        Recent AI Detections
+                    </h3>
+                    <span style="font-size: 12px; color: var(--text-light);" id="last-update">Just now</span>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>TIMESTAMP</th>
+                                <th>SOURCE</th>
+                                <th>DESTINATION</th>
+                                <th>ATTACK TYPE</th>
+                                <th>CONFIDENCE</th>
+                                <th>SEVERITY</th>
+                                <th>ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detections-body">
+                            <tr>
+                                <td colspan="7">
+                                    <div class="empty-state">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                        <p>Loading AI detections...</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Settings -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-sliders-h"></i>
+                        AI Detection Settings
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="settings-panel">
+                        <div class="setting-item">
+                            <div class="setting-label">Confidence Threshold</div>
+                            <div class="setting-description">Minimum confidence level for threat detection (0.0 - 1.0)</div>
+                            <div class="threshold-input">
+                                <input type="number" id="threshold-input" min="0" max="1" step="0.05" value="0.75">
+                                <button onclick="updateThreshold()">Update</button>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-label">Current Threshold</div>
+                            <div class="setting-description">Active confidence threshold for AI detections</div>
+                            <div style="font-size: 24px; font-weight: 700; color: var(--primary);" id="current-threshold">75%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sidebar toggle
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+
+            if (window.innerWidth <= 768) {
+                sidebar.classList.toggle('mobile-open');
+            } else {
+                sidebar.classList.toggle('collapsed');
+                mainContent.classList.toggle('expanded');
+            }
+        }
+
+        // Chart colors
+        const attackColors = {
+            'DDoS': '#ef4444',
+            'PortScan': '#f59e0b',
+            'Bot': '#f97316',
+            'Web Attack': '#ec4899',
+            'Brute Force': '#a855f7',
+            'Infiltration': '#991b1b'
+        };
+
+        const severityColors = {
+            'critical': '#991b1b',
+            'high': '#f59e0b',
+            'medium': '#3b82f6',
+            'low': '#10b981'
+        };
+
+        // Initialize charts
+        const attackCtx = document.getElementById('attackChart').getContext('2d');
+        const attackChart = new Chart(attackCtx, {
+            type: 'doughnut',
+            data: {
+                labels: [],
+                datasets: [{
+                    data: [],
+                    backgroundColor: [],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            font: { family: 'Inter', size: 11 },
+                            padding: 12,
+                            usePointStyle: true
+                        }
+                    }
+                },
+                cutout: '65%'
+            }
+        });
+
+        const severityCtx = document.getElementById('severityChart').getContext('2d');
+        const severityChart = new Chart(severityCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Detections',
+                    data: [],
+                    backgroundColor: []
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            font: { family: 'Inter' },
+                            precision: 0
+                        }
+                    },
+                    x: {
+                        ticks: { font: { family: 'Inter' } }
+                    }
+                }
+            }
+        });
+
+        // Fetch user
+        fetch('/api/current_user').then(r => r.json()).then(d => {
+            if (d.name) {
+                document.getElementById('current-user').textContent = d.name;
+                document.getElementById('user-avatar').textContent = d.name[0].toUpperCase();
+            }
+        });
+
+        // Update AI stats
+        async function updateStats() {
+            try {
+                const data = await fetch('/api/ai-stats').then(r => r.json());
+
+                document.getElementById('total-detections').textContent = data.total_detections || 0;
+                document.getElementById('high-confidence').textContent = data.high_confidence_count || 0;
+                document.getElementById('avg-confidence').textContent = (data.average_confidence || 0) + '%';
+
+                // Update attack type chart
+                const attackTypes = Object.keys(data.by_attack_type || {});
+                if (attackTypes.length > 0) {
+                    attackChart.data.labels = attackTypes;
+                    attackChart.data.datasets[0].data = Object.values(data.by_attack_type);
+                    attackChart.data.datasets[0].backgroundColor = attackTypes.map(t => attackColors[t] || '#64748b');
+                    attackChart.update('none');
+                }
+
+                // Update severity chart
+                const severities = Object.keys(data.by_severity || {});
+                if (severities.length > 0) {
+                    severityChart.data.labels = severities.map(s => s.toUpperCase());
+                    severityChart.data.datasets[0].data = Object.values(data.by_severity);
+                    severityChart.data.datasets[0].backgroundColor = severities.map(s => severityColors[s] || '#64748b');
+                    severityChart.update('none');
+                }
+            } catch(e) {
+                console.error('Error updating stats:', e);
+            }
+        }
+
+        // Update model info
+        async function updateModelInfo() {
+            try {
+                const data = await fetch('/api/ai-model-info').then(r => r.json());
+
+                if (data.model_loaded) {
+                    document.getElementById('model-status').textContent = 'Active';
+                    document.getElementById('model-status').style.color = 'var(--success)';
+
+                    const infoHtml = `
+                        <div class="info-item">
+                            <div class="info-label">Model Type</div>
+                            <div class="info-value">Neural Network</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Features</div>
+                            <div class="info-value">${data.feature_count || 'N/A'}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Attack Types</div>
+                            <div class="info-value">${data.attack_types ? data.attack_types.length : 'N/A'}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Accuracy</div>
+                            <div class="info-value">${data.accuracy ? (data.accuracy * 100).toFixed(1) + '%' : 'N/A'}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Precision</div>
+                            <div class="info-value">${data.precision ? (data.precision * 100).toFixed(1) + '%' : 'N/A'}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Recall</div>
+                            <div class="info-value">${data.recall ? (data.recall * 100).toFixed(1) + '%' : 'N/A'}</div>
+                        </div>
+                    `;
+                    document.getElementById('model-info').innerHTML = infoHtml;
+
+                    // Update threshold display
+                    if (data.confidence_threshold) {
+                        document.getElementById('current-threshold').textContent = (data.confidence_threshold * 100).toFixed(0) + '%';
+                        document.getElementById('threshold-input').value = data.confidence_threshold;
+                    }
+                } else {
+                    document.getElementById('model-status').textContent = 'Offline';
+                    document.getElementById('model-status').style.color = 'var(--danger)';
+                    document.getElementById('model-info').innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Model not loaded</p></div>';
+                }
+            } catch(e) {
+                console.error('Error updating model info:', e);
+            }
+        }
+
+        // Update detections table
+        async function updateDetections() {
+            try {
+                const data = await fetch('/api/ai-detections').then(r => r.json());
+                const tbody = document.getElementById('detections-body');
+
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="fas fa-check-circle"></i><p>No AI detections yet</p></div></td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                data.slice().reverse().slice(0, 30).forEach(d => {
+                    const row = tbody.insertRow();
+                    const timestamp = new Date(d.timestamp).toLocaleString();
+                    row.innerHTML = `
+                        <td style="font-family: monospace; font-size: 12px;">${timestamp}</td>
+                        <td><code style="font-size: 12px;">${d.source}</code></td>
+                        <td><code style="font-size: 12px;">${d.destination}</code></td>
+                        <td><strong>${d.attack_type}</strong></td>
+                        <td><span class="confidence-badge">${d.confidence}%</span></td>
+                        <td><span class="severity-badge severity-${d.severity}">${d.severity}</span></td>
+                        <td><span class="action-badge action-${d.action}">${d.action}</span></td>
+                    `;
+                });
+
+                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+            } catch(e) {
+                console.error('Error updating detections:', e);
+            }
+        }
+
+        // Update threshold
+        async function updateThreshold() {
+            const threshold = parseFloat(document.getElementById('threshold-input').value);
+
+            if (threshold < 0 || threshold > 1) {
+                alert('Threshold must be between 0.0 and 1.0');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/ai-threshold', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ threshold: threshold })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('current-threshold').textContent = (threshold * 100).toFixed(0) + '%';
+                    alert('Threshold updated successfully!');
+                } else {
+                    alert('Failed to update threshold: ' + (data.error || 'Unknown error'));
+                }
+            } catch(e) {
+                console.error('Error updating threshold:', e);
+                alert('Failed to update threshold');
+            }
+        }
+
+        // Initialize and set intervals
+        updateStats();
+        updateModelInfo();
+        updateDetections();
+        setInterval(updateStats, 3000);
+        setInterval(updateDetections, 2000);
+        setInterval(updateModelInfo, 10000);
+    </script>
+</body>
+</html>

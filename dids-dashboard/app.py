@@ -82,7 +82,7 @@ def create_app(config_name='default'):
     
     # 2. Initialize AI detection service
     app.logger.info("2️⃣  Initializing AI-Powered Threat Detection...")
-    model_path = os.path.join(os.path.dirname(__file__), 'models')
+    model_path = os.path.join(os.path.dirname(__file__), 'model')
     ai_service = AIDetectionService(app.config, model_path=model_path)
     
     if ai_service.is_ready():

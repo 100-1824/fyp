@@ -21,5 +21,11 @@ def init_main_routes(app, mongo, user_service):
         users = user_service.get_all_users()
         user_stats = user_service.get_user_statistics()
         return render_template('admin.html', users=users, stats=user_stats)
-    
+
+    @main_bp.route('/ai-detection')
+    @login_required
+    def ai_detection():
+        """AI Detection dashboard page"""
+        return render_template('ai_detection.html')
+
     return main_bp
