@@ -545,6 +545,10 @@
                 <i class="fas fa-home"></i>
                 <span>Dashboard</span>
             </a>
+            <a href="{{ url_for('main.ai_detection') }}" class="nav-item">
+                <i class="fas fa-brain"></i>
+                <span>AI Detection</span>
+            </a>
             <a href="#" class="nav-item">
                 <i class="fas fa-network-wired"></i>
                 <span>Network Traffic</span>
@@ -636,7 +640,7 @@
                 <div class="stat-card">
                     <div class="stat-header">
                         <div>
-                            <div class="stat-label">THREATS BLOCKED</div>
+                            <div class="stat-label">THREATS DETECTED</div>
                             <div class="stat-value" id="threats-blocked">0</div>
                         </div>
                         <div class="stat-icon danger">
@@ -709,7 +713,7 @@
                     <!-- Threats -->
                     <div class="card">
                         <div class="card-header">
-                            <h3 class="card-title">Recent Threats</h3>
+                            <h3 class="card-title">Recent Threats <span style="font-size: 11px; color: #64748b; font-weight: 400;">(Signature + AI)</span></h3>
                             <span style="padding: 2px 8px; background: #fee2e2; color: #991b1b; border-radius: 4px; font-size: 12px; font-weight: 600;" id="threat-count">0</span>
                         </div>
                         <div class="threat-list" id="threat-list">
@@ -800,9 +804,14 @@
         async function updateStats() {
             try {
                 const data = await fetch('/api/stats').then(r => r.json());
+                const aiStats = await fetch('/api/ai-stats').then(r => r.json());
+
                 document.getElementById('pps').textContent = data.pps || 0;
                 document.getElementById('total-packets').textContent = data.total_packets.toLocaleString();
-                document.getElementById('threats-blocked').textContent = data.threats_blocked;
+
+                // Combine signature-based and AI detections
+                const totalThreatsBlocked = (data.threats_blocked || 0) + (aiStats.total_detections || 0);
+                document.getElementById('threats-blocked').textContent = totalThreatsBlocked;
 
                 const top = Object.entries(data.top_talkers)[0];
                 document.getElementById('top-talker').textContent = top ? `${top[0]}` : '-';
@@ -817,7 +826,7 @@
 
         async function updateThreats() {
             try {
-                const data = await fetch('/api/threats').then(r => r.json());
+                const data = await fetch('/api/combined-threats').then(r => r.json());
                 const list = document.getElementById('threat-list');
                 document.getElementById('threat-count').textContent = data.length;
 
@@ -827,12 +836,19 @@
                 }
 
                 list.innerHTML = '';
-                data.slice().reverse().slice(0, 10).forEach(t => {
+                data.slice(0, 10).forEach(t => {
                     const div = document.createElement('div');
                     div.className = 'threat-item';
+                    const detectionBadge = t.detection_method === 'ai'
+                        ? '<span style="padding: 2px 6px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 3px; font-size: 10px; font-weight: 600; margin-left: 6px;">AI</span>'
+                        : '<span style="padding: 2px 6px; background: #e2e8f0; color: #475569; border-radius: 3px; font-size: 10px; font-weight: 600; margin-left: 6px;">SIG</span>';
+
+                    const displayName = t.signature || t.attack_type || 'Unknown Threat';
+                    const confidence = t.confidence ? ` <span style="font-size: 12px; color: #64748b;">(${t.confidence}%)</span>` : '';
+
                     div.innerHTML = `
                         <div class="threat-header">
-                            <div class="threat-name">${t.signature}</div>
+                            <div class="threat-name">${displayName}${detectionBadge}${confidence}</div>
                             <div class="threat-time">${new Date(t.timestamp).toLocaleTimeString()}</div>
                         </div>
                         <div class="threat-details">${t.source} → ${t.destination}</div>
