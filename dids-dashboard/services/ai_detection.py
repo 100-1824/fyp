@@ -57,6 +57,39 @@ class AIDetectionService:
         # Load model and components
         self.load_model()
     
+    def _load_label_encoder_from_config(self):
+        """
+        Load label encoder from model configuration file as fallback.
+
+        Returns:
+            Simple object with classes_ attribute or None if failed
+        """
+        try:
+            config_file = self.model_path / 'dids_config.json'
+            if not config_file.exists():
+                logger.error("Model configuration file not found")
+                return None
+
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+
+            if 'class_names' not in config:
+                logger.error("Class names not found in configuration")
+                return None
+
+            # Create a simple object with classes_ attribute like LabelEncoder
+            class SimpleLabelEncoder:
+                def __init__(self, classes):
+                    self.classes_ = np.array(classes)
+
+            encoder = SimpleLabelEncoder(config['class_names'])
+            logger.info(f"✓ Loaded {len(encoder.classes_)} classes from config file")
+            return encoder
+
+        except Exception as e:
+            logger.error(f"Error loading label encoder from config: {e}")
+            return None
+
     def load_model(self) -> bool:
         """
         Load trained model and preprocessing components.
@@ -84,21 +117,37 @@ class AIDetectionService:
             # Load scaler
             scaler_file = self.model_path / 'scaler.pkl'
             if scaler_file.exists():
-                with open(scaler_file, 'rb') as f:
-                    self.scaler = pickle.load(f)
-                logger.info("✓ Loaded scaler")
+                try:
+                    with open(scaler_file, 'rb') as f:
+                        self.scaler = pickle.load(f)
+                    logger.info("✓ Loaded scaler")
+                except Exception as e:
+                    logger.warning(f"Failed to load scaler: {e}. Using default normalization")
+                    self.scaler = None
             else:
                 logger.warning("Scaler not found - using default normalization")
-            
+
             # Load label encoder
             encoder_file = self.model_path / 'label_encoder.pkl'
             if encoder_file.exists():
-                with open(encoder_file, 'rb') as f:
-                    self.label_encoder = pickle.load(f)
-                logger.info(f"✓ Loaded label encoder with {len(self.label_encoder.classes_)} classes")
+                try:
+                    with open(encoder_file, 'rb') as f:
+                        self.label_encoder = pickle.load(f)
+                    logger.info(f"✓ Loaded label encoder with {len(self.label_encoder.classes_)} classes")
+                except Exception as e:
+                    logger.warning(f"Failed to load label encoder from pickle: {e}")
+                    logger.info("Attempting to load class names from config file...")
+                    self.label_encoder = self._load_label_encoder_from_config()
+                    if self.label_encoder is None:
+                        logger.error("Could not initialize label encoder")
+                        return False
             else:
-                logger.error("Label encoder not found")
-                return False
+                logger.warning("Label encoder pickle file not found")
+                logger.info("Attempting to load class names from config file...")
+                self.label_encoder = self._load_label_encoder_from_config()
+                if self.label_encoder is None:
+                    logger.error("Could not initialize label encoder")
+                    return False
             
             # Load feature names
             feature_file = self.model_path / 'feature_names.json'
