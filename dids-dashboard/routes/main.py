@@ -28,4 +28,22 @@ def init_main_routes(app, mongo, user_service):
         """AI Detection dashboard page"""
         return render_template('ai_detection.html')
 
+    @main_bp.route('/threats')
+    @login_required
+    def threats():
+        """Threats dashboard page"""
+        return render_template('threats.html')
+
+    @main_bp.route('/analytics')
+    @login_required
+    def analytics():
+        """Analytics dashboard page"""
+        return render_template('analytics.html')
+
+    @main_bp.route('/settings')
+    @login_required
+    def settings():
+        """Settings page"""
+        return render_template('settings.html')
+
     return main_bp

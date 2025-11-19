@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DIDS - Network Security Dashboard</title>
+    <title>Analytics - DIDS</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
@@ -34,7 +34,6 @@
             overflow-x: hidden;
         }
 
-        /* Sidebar */
         .sidebar {
             position: fixed;
             left: 0;
@@ -173,7 +172,6 @@
             color: var(--danger);
         }
 
-        /* Main Content */
         .main-content {
             margin-left: var(--sidebar-width);
             min-height: 100vh;
@@ -184,7 +182,6 @@
             margin-left: 0;
         }
 
-        /* Top Bar */
         .top-bar {
             background: white;
             padding: 16px 24px;
@@ -218,41 +215,10 @@
             color: var(--text-dark);
         }
 
-        .top-actions {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-
-        .capture-btn {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
-            font-weight: 600;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .capture-btn.active {
-            background: var(--success);
-            color: white;
-        }
-
-        .capture-btn.inactive {
-            background: var(--danger);
-            color: white;
-        }
-
-        /* Dashboard Content */
         .dashboard {
             padding: 24px;
         }
 
-        /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -302,17 +268,11 @@
             color: var(--text-dark);
         }
 
-        /* Content Grid */
-        .content-grid {
-            display: grid;
-            grid-template-columns: 1.8fr 1fr;
-            gap: 20px;
-        }
-
         .card {
             background: white;
             border-radius: 8px;
             border: 1px solid var(--border);
+            margin-bottom: 20px;
         }
 
         .card-header {
@@ -327,146 +287,55 @@
             font-size: 16px;
             font-weight: 600;
             color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .card-body {
             padding: 20px;
         }
 
-        /* Table */
-        .table-container {
-            overflow-x: auto;
-            max-height: 500px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        thead {
-            position: sticky;
-            top: 0;
-            background: var(--bg-light);
-        }
-
-        th {
-            padding: 12px;
-            text-align: left;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-light);
-            text-transform: uppercase;
-        }
-
-        td {
-            padding: 12px;
-            border-bottom: 1px solid var(--border);
-            font-size: 14px;
-        }
-
-        tbody tr:hover {
-            background: var(--bg-light);
-        }
-
-        tbody tr.threat {
-            background: #fef2f2;
-        }
-
-        .protocol-badge {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-            display: inline-block;
-        }
-
-        .protocol-tcp { background: #dbeafe; color: #1e40af; }
-        .protocol-udp { background: #fef3c7; color: #92400e; }
-        .protocol-http { background: #d1fae5; color: #065f46; }
-        .protocol-https { background: #e0e7ff; color: #3730a3; }
-        .protocol-dns { background: #dbeafe; color: #1e3a8a; }
-
-        .status-badge {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .status-normal {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .status-threat {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        /* Chart */
         .chart-box {
-            height: 280px;
+            height: 300px;
             position: relative;
         }
 
-        /* Threat List */
-        .threat-list {
-            max-height: 440px;
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .top-talkers-list {
+            max-height: 300px;
             overflow-y: auto;
         }
 
-        .threat-item {
+        .talker-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             padding: 12px;
             border-bottom: 1px solid var(--border);
         }
 
-        .threat-item:last-child {
+        .talker-item:last-child {
             border-bottom: none;
         }
 
-        .threat-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 6px;
-        }
-
-        .threat-name {
+        .talker-ip {
+            font-family: monospace;
             font-size: 14px;
             font-weight: 600;
-            color: var(--text-dark);
         }
 
-        .threat-time {
-            font-size: 12px;
+        .talker-count {
+            font-size: 14px;
             color: var(--text-light);
         }
 
-        .threat-details {
-            font-size: 13px;
-            color: var(--text-light);
-            margin-bottom: 6px;
-        }
-
-        .threat-badge {
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .threat-badge.blocked {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        .threat-badge.alert {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        /* Empty State */
         .empty-state {
             text-align: center;
             padding: 40px;
@@ -479,13 +348,9 @@
             opacity: 0.3;
         }
 
-        /* Responsive */
         @media (max-width: 1200px) {
-            .stats-grid {
+            .stats-grid, .grid-2 {
                 grid-template-columns: repeat(2, 1fr);
-            }
-            .content-grid {
-                grid-template-columns: 1fr;
             }
         }
 
@@ -502,12 +367,11 @@
             .main-content {
                 margin-left: 0;
             }
-            .stats-grid {
+            .stats-grid, .grid-2 {
                 grid-template-columns: 1fr;
             }
         }
 
-        /* Scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
@@ -528,7 +392,6 @@
     </style>
 </head>
 <body>
-    <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div class="logo">
@@ -541,7 +404,7 @@
         </div>
 
         <nav class="nav-menu">
-            <a href="{{ url_for('main.dashboard') }}" class="nav-item active">
+            <a href="{{ url_for('main.dashboard') }}" class="nav-item">
                 <i class="fas fa-home"></i>
                 <span>Dashboard</span>
             </a>
@@ -553,7 +416,7 @@
                 <i class="fas fa-shield-virus"></i>
                 <span>Threats</span>
             </a>
-            <a href="{{ url_for('main.analytics') }}" class="nav-item">
+            <a href="{{ url_for('main.analytics') }}" class="nav-item active">
                 <i class="fas fa-chart-line"></i>
                 <span>Analytics</span>
             </a>
@@ -587,47 +450,28 @@
         </div>
     </div>
 
-    <!-- Main Content -->
     <div class="main-content" id="mainContent">
-        <!-- Top Bar -->
         <div class="top-bar">
             <div class="top-left">
                 <button class="menu-toggle" onclick="toggleSidebar()">
                     <i class="fas fa-bars"></i>
                 </button>
-                <h1 class="page-title">Network Security Dashboard</h1>
-            </div>
-            <div class="top-actions">
-                <button id="capture-btn" class="capture-btn active">
-                    <i class="fas fa-circle"></i>
-                    <span id="capture-text">Live</span>
-                </button>
+                <h1 class="page-title">
+                    <i class="fas fa-chart-line" style="color: var(--primary);"></i>
+                    Network Analytics
+                </h1>
             </div>
         </div>
 
-        <!-- Dashboard Content -->
         <div class="dashboard">
-            <!-- Stats Grid -->
             <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div>
-                            <div class="stat-label">PACKETS/SEC</div>
-                            <div class="stat-value" id="pps">0</div>
-                        </div>
-                        <div class="stat-icon primary">
-                            <i class="fas fa-tachometer-alt"></i>
-                        </div>
-                    </div>
-                </div>
-
                 <div class="stat-card">
                     <div class="stat-header">
                         <div>
                             <div class="stat-label">TOTAL PACKETS</div>
                             <div class="stat-value" id="total-packets">0</div>
                         </div>
-                        <div class="stat-icon success">
+                        <div class="stat-icon primary">
                             <i class="fas fa-network-wired"></i>
                         </div>
                     </div>
@@ -636,8 +480,20 @@
                 <div class="stat-card">
                     <div class="stat-header">
                         <div>
-                            <div class="stat-label">THREATS DETECTED</div>
-                            <div class="stat-value" id="threats-blocked">0</div>
+                            <div class="stat-label">PACKETS/SEC</div>
+                            <div class="stat-value" id="pps">0</div>
+                        </div>
+                        <div class="stat-icon success">
+                            <i class="fas fa-tachometer-alt"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div>
+                            <div class="stat-label">THREATS</div>
+                            <div class="stat-value" id="total-threats">0</div>
                         </div>
                         <div class="stat-icon danger">
                             <i class="fas fa-shield-virus"></i>
@@ -648,75 +504,72 @@
                 <div class="stat-card">
                     <div class="stat-header">
                         <div>
-                            <div class="stat-label">TOP TALKER</div>
-                            <div class="stat-value" style="font-size: 16px;" id="top-talker">-</div>
+                            <div class="stat-label">DETECTION RATE</div>
+                            <div class="stat-value" style="font-size: 24px;" id="detection-rate">0%</div>
                         </div>
                         <div class="stat-icon warning">
-                            <i class="fas fa-server"></i>
+                            <i class="fas fa-percentage"></i>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Content Grid -->
-            <div class="content-grid">
-                <!-- Traffic Table -->
+            <div class="grid-2">
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Live Network Traffic</h3>
-                        <span style="font-size: 12px; color: var(--text-light);" id="last-update">Just now</span>
+                        <h3 class="card-title">
+                            <i class="fas fa-chart-pie"></i>
+                            Protocol Distribution
+                        </h3>
                     </div>
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>TIME</th>
-                                    <th>SOURCE</th>
-                                    <th>DESTINATION</th>
-                                    <th>PROTOCOL</th>
-                                    <th>SIZE</th>
-                                    <th>STATUS</th>
-                                </tr>
-                            </thead>
-                            <tbody id="traffic-body">
-                                <tr>
-                                    <td colspan="6">
-                                        <div class="empty-state">
-                                            <i class="fas fa-spinner fa-spin"></i>
-                                            <p>Loading...</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div class="card-body">
+                        <div class="chart-box">
+                            <canvas id="protocolChart"></canvas>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Sidebar Column -->
-                <div style="display: flex; flex-direction: column; gap: 20px;">
-                    <!-- Protocol Chart -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h3 class="card-title">Protocol Distribution</h3>
-                        </div>
-                        <div class="card-body">
-                            <div class="chart-box">
-                                <canvas id="protocolChart"></canvas>
-                            </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-chart-bar"></i>
+                            Attack Type Distribution
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-box">
+                            <canvas id="attackChart"></canvas>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    <!-- Threats -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h3 class="card-title">Recent Threats <span style="font-size: 11px; color: #64748b; font-weight: 400;">(Signature + AI)</span></h3>
-                            <span style="padding: 2px 8px; background: #fee2e2; color: #991b1b; border-radius: 4px; font-size: 12px; font-weight: 600;" id="threat-count">0</span>
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-server"></i>
+                            Top Talkers
+                        </h3>
+                    </div>
+                    <div class="top-talkers-list" id="top-talkers">
+                        <div class="empty-state">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <p>Loading...</p>
                         </div>
-                        <div class="threat-list" id="threat-list">
-                            <div class="empty-state">
-                                <i class="fas fa-check-circle"></i>
-                                <p>No threats</p>
-                            </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-chart-area"></i>
+                            Detection Methods
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-box">
+                            <canvas id="detectionChart"></canvas>
                         </div>
                     </div>
                 </div>
@@ -725,11 +578,10 @@
     </div>
 
     <script>
-        // Sidebar toggle
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const mainContent = document.getElementById('mainContent');
-            
+
             if (window.innerWidth <= 768) {
                 sidebar.classList.toggle('mobile-open');
             } else {
@@ -738,16 +590,30 @@
             }
         }
 
-        // Protocol colors
+        fetch('/api/current_user').then(r => r.json()).then(d => {
+            if (d.name) {
+                document.getElementById('current-user').textContent = d.name;
+                document.getElementById('user-avatar').textContent = d.name[0].toUpperCase();
+            }
+        });
+
         const colors = {
             TCP: '#3b82f6', UDP: '#f59e0b', HTTP: '#10b981',
             HTTPS: '#8b5cf6', DNS: '#06b6d4', SSH: '#ec4899',
             ICMP: '#ef4444', FTP: '#84cc16', OTHER: '#64748b'
         };
 
-        // Chart
-        const ctx = document.getElementById('protocolChart').getContext('2d');
-        const chart = new Chart(ctx, {
+        const attackColors = {
+            'DDoS': '#ef4444',
+            'PortScan': '#f59e0b',
+            'Bot': '#f97316',
+            'Web Attack': '#ec4899',
+            'Brute Force': '#a855f7',
+            'Infiltration': '#991b1b'
+        };
+
+        const protocolCtx = document.getElementById('protocolChart').getContext('2d');
+        const protocolChart = new Chart(protocolCtx, {
             type: 'doughnut',
             data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderWidth: 0 }] },
             options: {
@@ -760,119 +626,93 @@
             }
         });
 
-        // Fetch user
-        fetch('/api/current_user').then(r => r.json()).then(d => {
-            if (d.name) {
-                document.getElementById('current-user').textContent = d.name;
-                document.getElementById('user-avatar').textContent = d.name[0].toUpperCase();
+        const attackCtx = document.getElementById('attackChart').getContext('2d');
+        const attackChart = new Chart(attackCtx, {
+            type: 'bar',
+            data: { labels: [], datasets: [{ label: 'Attacks', data: [], backgroundColor: '#ef4444' }] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { font: { family: 'Inter' }, precision: 0 } },
+                    x: { ticks: { font: { family: 'Inter' } } }
+                }
             }
         });
 
-        // Update functions
-        async function updateTraffic() {
-            try {
-                const data = await fetch('/api/traffic').then(r => r.json());
-                const tbody = document.getElementById('traffic-body');
-                tbody.innerHTML = '';
-
-                if (!data.length) {
-                    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><i class="fas fa-inbox"></i><p>No data</p></div></td></tr>';
-                    return;
+        const detectionCtx = document.getElementById('detectionChart').getContext('2d');
+        const detectionChart = new Chart(detectionCtx, {
+            type: 'pie',
+            data: { labels: ['Signature-Based', 'AI-Powered'], datasets: [{ data: [0, 0], backgroundColor: ['#64748b', '#667eea'], borderWidth: 0 }] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 11 }, padding: 12, usePointStyle: true } }
                 }
-
-                data.slice(0, 50).forEach(p => {
-                    const row = tbody.insertRow();
-                    if (p.threat) row.classList.add('threat');
-                    row.innerHTML = `
-                        <td style="font-family: monospace;">${p.timestamp}</td>
-                        <td><code style="font-size: 12px;">${p.source}</code></td>
-                        <td><code style="font-size: 12px;">${p.destination}</code></td>
-                        <td><span class="protocol-badge protocol-${p.protocol.toLowerCase()}">${p.protocol}</span></td>
-                        <td>${formatBytes(p.size)}</td>
-                        <td><span class="status-badge status-${p.threat ? 'threat' : 'normal'}">${p.threat ? 'THREAT' : 'NORMAL'}</span></td>
-                    `;
-                });
-
-                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
-            } catch(e) { console.error(e); }
-        }
-
-        async function updateStats() {
-            try {
-                const data = await fetch('/api/stats').then(r => r.json());
-                const aiStats = await fetch('/api/ai-stats').then(r => r.json());
-
-                document.getElementById('pps').textContent = data.pps || 0;
-                document.getElementById('total-packets').textContent = data.total_packets.toLocaleString();
-
-                // Combine signature-based and AI detections
-                const totalThreatsBlocked = (data.threats_blocked || 0) + (aiStats.total_detections || 0);
-                document.getElementById('threats-blocked').textContent = totalThreatsBlocked;
-
-                const top = Object.entries(data.top_talkers)[0];
-                document.getElementById('top-talker').textContent = top ? `${top[0]}` : '-';
-
-                const protocols = Object.keys(data.protocols);
-                chart.data.labels = protocols;
-                chart.data.datasets[0].data = Object.values(data.protocols);
-                chart.data.datasets[0].backgroundColor = protocols.map(p => colors[p] || colors.OTHER);
-                chart.update('none');
-            } catch(e) { console.error(e); }
-        }
-
-        async function updateThreats() {
-            try {
-                const data = await fetch('/api/combined-threats').then(r => r.json());
-                const list = document.getElementById('threat-list');
-                document.getElementById('threat-count').textContent = data.length;
-
-                if (!data.length) {
-                    list.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle"></i><p>No threats</p></div>';
-                    return;
-                }
-
-                list.innerHTML = '';
-                data.slice(0, 10).forEach(t => {
-                    const div = document.createElement('div');
-                    div.className = 'threat-item';
-                    const detectionBadge = t.detection_method === 'ai'
-                        ? '<span style="padding: 2px 6px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 3px; font-size: 10px; font-weight: 600; margin-left: 6px;">AI</span>'
-                        : '<span style="padding: 2px 6px; background: #e2e8f0; color: #475569; border-radius: 3px; font-size: 10px; font-weight: 600; margin-left: 6px;">SIG</span>';
-
-                    const displayName = t.signature || t.attack_type || 'Unknown Threat';
-                    const confidence = t.confidence ? ` <span style="font-size: 12px; color: #64748b;">(${t.confidence}%)</span>` : '';
-
-                    div.innerHTML = `
-                        <div class="threat-header">
-                            <div class="threat-name">${displayName}${detectionBadge}${confidence}</div>
-                            <div class="threat-time">${new Date(t.timestamp).toLocaleTimeString()}</div>
-                        </div>
-                        <div class="threat-details">${t.source} → ${t.destination}</div>
-                        <span class="threat-badge ${t.action}">${t.action.toUpperCase()}</span>
-                    `;
-                    list.appendChild(div);
-                });
-            } catch(e) { console.error(e); }
-        }
-
-        // Toggle capture
-        document.getElementById('capture-btn').addEventListener('click', async function() {
-            const res = await fetch('/api/capture/toggle', { method: 'POST' }).then(r => r.json());
-            this.className = `capture-btn ${res.active ? 'active' : 'inactive'}`;
-            this.innerHTML = `<i class="fas fa-${res.active ? 'circle' : 'pause'}"></i><span>${res.active ? 'Live' : 'Paused'}</span>`;
+            }
         });
 
-        function formatBytes(b) {
-            return b < 1024 ? b + ' B' : b < 1048576 ? (b/1024).toFixed(1) + ' KB' : (b/1048576).toFixed(1) + ' MB';
+        async function updateAnalytics() {
+            try {
+                const stats = await fetch('/api/stats').then(r => r.json());
+                const aiStats = await fetch('/api/ai-stats').then(r => r.json());
+                const threats = await fetch('/api/combined-threats').then(r => r.json());
+
+                document.getElementById('total-packets').textContent = stats.total_packets.toLocaleString();
+                document.getElementById('pps').textContent = stats.pps || 0;
+
+                const totalThreats = (stats.threats_blocked || 0) + (aiStats.total_detections || 0);
+                document.getElementById('total-threats').textContent = totalThreats;
+
+                const detectionRate = stats.total_packets > 0 ? ((totalThreats / stats.total_packets) * 100).toFixed(2) : 0;
+                document.getElementById('detection-rate').textContent = detectionRate + '%';
+
+                const protocols = Object.keys(stats.protocols);
+                if (protocols.length > 0) {
+                    protocolChart.data.labels = protocols;
+                    protocolChart.data.datasets[0].data = Object.values(stats.protocols);
+                    protocolChart.data.datasets[0].backgroundColor = protocols.map(p => colors[p] || colors.OTHER);
+                    protocolChart.update('none');
+                }
+
+                if (aiStats.by_attack_type && Object.keys(aiStats.by_attack_type).length > 0) {
+                    const attackTypes = Object.keys(aiStats.by_attack_type);
+                    attackChart.data.labels = attackTypes;
+                    attackChart.data.datasets[0].data = Object.values(aiStats.by_attack_type);
+                    attackChart.data.datasets[0].backgroundColor = attackTypes.map(t => attackColors[t] || '#64748b');
+                    attackChart.update('none');
+                }
+
+                const talkersList = document.getElementById('top-talkers');
+                const talkers = Object.entries(stats.top_talkers).slice(0, 10);
+                if (talkers.length > 0) {
+                    talkersList.innerHTML = '';
+                    talkers.forEach(([ip, count]) => {
+                        const div = document.createElement('div');
+                        div.className = 'talker-item';
+                        div.innerHTML = `
+                            <span class="talker-ip">${ip}</span>
+                            <span class="talker-count">${count} packets</span>
+                        `;
+                        talkersList.appendChild(div);
+                    });
+                } else {
+                    talkersList.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No data</p></div>';
+                }
+
+                const sigThreats = threats.filter(t => t.detection_method !== 'ai').length;
+                const aiThreatsCount = threats.filter(t => t.detection_method === 'ai').length;
+                detectionChart.data.datasets[0].data = [sigThreats, aiThreatsCount];
+                detectionChart.update('none');
+            } catch(e) {
+                console.error('Error updating analytics:', e);
+            }
         }
 
-        // Initialize
-        updateTraffic();
-        updateStats();
-        updateThreats();
-        setInterval(updateTraffic, 1000);
-        setInterval(updateStats, 2000);
-        setInterval(updateThreats, 3000);
+        updateAnalytics();
+        setInterval(updateAnalytics, 3000);
     </script>
 </body>
 </html>

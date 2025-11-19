@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - DIDS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --text-dark: #0f172a;
+            --text-light: #64748b;
+            --bg-light: #f8fafc;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --sidebar-width: 260px;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-light);
+            color: var(--text-dark);
+            overflow-x: hidden;
+        }
+
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: white;
+            border-right: 1px solid var(--border);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(calc(-1 * var(--sidebar-width)));
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo i {
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 20px;
+        }
+
+        .logo-text {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .sidebar-close {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: var(--text-light);
+            cursor: pointer;
+        }
+
+        .nav-menu {
+            flex: 1;
+            padding: 16px 0;
+            overflow-y: auto;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            color: var(--text-light);
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .nav-item:hover {
+            background: var(--bg-light);
+            color: var(--text-dark);
+        }
+
+        .nav-item.active {
+            background: var(--bg-light);
+            color: var(--primary);
+            border-right: 3px solid var(--primary);
+        }
+
+        .nav-item i {
+            width: 20px;
+            font-size: 18px;
+        }
+
+        .user-section {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-weight: 600;
+        }
+
+        .user-info {
+            flex: 1;
+        }
+
+        .user-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .user-role {
+            font-size: 12px;
+            color: var(--text-light);
+        }
+
+        .logout-btn {
+            background: none;
+            border: none;
+            color: var(--text-light);
+            cursor: pointer;
+            padding: 8px;
+        }
+
+        .logout-btn:hover {
+            color: var(--danger);
+        }
+
+        .main-content {
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
+            transition: margin-left 0.3s ease;
+        }
+
+        .main-content.expanded {
+            margin-left: 0;
+        }
+
+        .top-bar {
+            background: white;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .top-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .menu-toggle {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: var(--text-dark);
+            cursor: pointer;
+            padding: 8px;
+        }
+
+        .page-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .dashboard {
+            padding: 24px;
+            max-width: 1200px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+        }
+
+        .card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        .setting-group {
+            margin-bottom: 24px;
+        }
+
+        .setting-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            background: var(--bg-light);
+            border-radius: 6px;
+            margin-bottom: 12px;
+        }
+
+        .setting-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .setting-info {
+            flex: 1;
+        }
+
+        .setting-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 4px;
+        }
+
+        .setting-description {
+            font-size: 12px;
+            color: var(--text-light);
+        }
+
+        .setting-control {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 48px;
+            height: 24px;
+            background: var(--border);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toggle-switch.active {
+            background: var(--success);
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+
+        .toggle-switch.active::after {
+            transform: translateX(24px);
+        }
+
+        .input-field {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+            min-width: 200px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-active {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-inactive {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .info-box {
+            padding: 16px;
+            background: #eff6ff;
+            border-left: 4px solid var(--primary);
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .info-box i {
+            color: var(--primary);
+            margin-right: 8px;
+        }
+
+        .info-box p {
+            font-size: 14px;
+            color: var(--text-dark);
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(calc(-1 * var(--sidebar-width)));
+            }
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+            .sidebar-close {
+                display: block;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+            .setting-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .setting-control {
+                margin-top: 12px;
+                width: 100%;
+            }
+            .input-field {
+                width: 100%;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-light);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-light);
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <i class="fas fa-shield-alt"></i>
+                <span class="logo-text">DIDS</span>
+            </div>
+            <button class="sidebar-close" onclick="toggleSidebar()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <nav class="nav-menu">
+            <a href="{{ url_for('main.dashboard') }}" class="nav-item">
+                <i class="fas fa-home"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="{{ url_for('main.ai_detection') }}" class="nav-item">
+                <i class="fas fa-brain"></i>
+                <span>AI Detection</span>
+            </a>
+            <a href="{{ url_for('main.threats') }}" class="nav-item">
+                <i class="fas fa-shield-virus"></i>
+                <span>Threats</span>
+            </a>
+            <a href="{{ url_for('main.analytics') }}" class="nav-item">
+                <i class="fas fa-chart-line"></i>
+                <span>Analytics</span>
+            </a>
+            {% if current_user.role == 'admin' %}
+            <a href="{{ url_for('main.admin_dashboard') }}" class="nav-item">
+                <i class="fas fa-users-cog"></i>
+                <span>User Management</span>
+            </a>
+            {% endif %}
+            <a href="{{ url_for('auth.change_password') }}" class="nav-item">
+                <i class="fas fa-key"></i>
+                <span>Change Password</span>
+            </a>
+            <a href="{{ url_for('main.settings') }}" class="nav-item active">
+                <i class="fas fa-cog"></i>
+                <span>Settings</span>
+            </a>
+        </nav>
+
+        <div class="user-section">
+            <div class="user-avatar" id="user-avatar">U</div>
+            <div class="user-info">
+                <div class="user-name" id="current-user">Loading...</div>
+                <div class="user-role">{{ current_user.role|capitalize }}</div>
+            </div>
+            <a href="{{ url_for('auth.logout') }}">
+                <button class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </a>
+        </div>
+    </div>
+
+    <div class="main-content" id="mainContent">
+        <div class="top-bar">
+            <div class="top-left">
+                <button class="menu-toggle" onclick="toggleSidebar()">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h1 class="page-title">
+                    <i class="fas fa-cog" style="color: var(--text-light);"></i>
+                    System Settings
+                </h1>
+            </div>
+        </div>
+
+        <div class="dashboard">
+            <div class="info-box">
+                <i class="fas fa-info-circle"></i>
+                <strong>Note:</strong> Changes to system settings may require administrator privileges and could affect system performance.
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-network-wired"></i>
+                        Network Capture Settings
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="setting-group">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Packet Capture Status</div>
+                                <div class="setting-description">Current network packet capture status</div>
+                            </div>
+                            <div class="setting-control">
+                                <span class="status-badge status-active" id="capture-status">ACTIVE</span>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Network Interface</div>
+                                <div class="setting-description">Interface used for packet capture</div>
+                            </div>
+                            <div class="setting-control">
+                                <span style="font-family: monospace; font-weight: 600;" id="network-interface">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-brain"></i>
+                        AI Detection Settings
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="setting-group">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">AI Model Status</div>
+                                <div class="setting-description">Current AI detection model status</div>
+                            </div>
+                            <div class="setting-control">
+                                <span class="status-badge status-active" id="ai-status">ACTIVE</span>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Confidence Threshold</div>
+                                <div class="setting-description">Minimum confidence level for AI threat detection (0.0 - 1.0)</div>
+                            </div>
+                            <div class="setting-control">
+                                <input type="number" class="input-field" id="ai-threshold" min="0" max="1" step="0.05" value="0.75">
+                                <button class="btn btn-primary" onclick="updateAIThreshold()">Update</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-shield-alt"></i>
+                        Threat Detection Settings
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="setting-group">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Signature-Based Detection</div>
+                                <div class="setting-description">Enable traditional signature-based threat detection</div>
+                            </div>
+                            <div class="setting-control">
+                                <span class="status-badge status-active">ENABLED</span>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Auto-Block Threats</div>
+                                <div class="setting-description">Automatically block detected threats</div>
+                            </div>
+                            <div class="setting-control">
+                                <span class="status-badge status-active">ENABLED</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-database"></i>
+                        Data Management
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="setting-group">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Total Packets Captured</div>
+                                <div class="setting-description">Total number of network packets captured</div>
+                            </div>
+                            <div class="setting-control">
+                                <span style="font-weight: 600;" id="total-packets">0</span>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Total Threats Detected</div>
+                                <div class="setting-description">Total number of threats identified</div>
+                            </div>
+                            <div class="setting-control">
+                                <span style="font-weight: 600;" id="total-threats">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-user"></i>
+                        Account Settings
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="setting-group">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Change Password</div>
+                                <div class="setting-description">Update your account password</div>
+                            </div>
+                            <div class="setting-control">
+                                <a href="{{ url_for('auth.change_password') }}">
+                                    <button class="btn btn-primary">Change Password</button>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+
+            if (window.innerWidth <= 768) {
+                sidebar.classList.toggle('mobile-open');
+            } else {
+                sidebar.classList.toggle('collapsed');
+                mainContent.classList.toggle('expanded');
+            }
+        }
+
+        fetch('/api/current_user').then(r => r.json()).then(d => {
+            if (d.name) {
+                document.getElementById('current-user').textContent = d.name;
+                document.getElementById('user-avatar').textContent = d.name[0].toUpperCase();
+            }
+        });
+
+        async function updateAIThreshold() {
+            const threshold = parseFloat(document.getElementById('ai-threshold').value);
+
+            if (threshold < 0 || threshold > 1) {
+                alert('Threshold must be between 0.0 and 1.0');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/ai-threshold', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ threshold: threshold })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('AI threshold updated successfully to ' + (threshold * 100).toFixed(0) + '%');
+                } else {
+                    alert('Failed to update threshold: ' + (data.error || 'Unknown error'));
+                }
+            } catch(e) {
+                console.error('Error updating threshold:', e);
+                alert('Failed to update threshold');
+            }
+        }
+
+        async function loadSettings() {
+            try {
+                const stats = await fetch('/api/stats').then(r => r.json());
+                const aiStats = await fetch('/api/ai-stats').then(r => r.json());
+                const modelInfo = await fetch('/api/ai-model-info').then(r => r.json());
+
+                document.getElementById('total-packets').textContent = stats.total_packets.toLocaleString();
+                const totalThreats = (stats.threats_blocked || 0) + (aiStats.total_detections || 0);
+                document.getElementById('total-threats').textContent = totalThreats.toLocaleString();
+
+                if (modelInfo.model_loaded) {
+                    document.getElementById('ai-status').textContent = 'ACTIVE';
+                    document.getElementById('ai-status').className = 'status-badge status-active';
+                    if (modelInfo.confidence_threshold) {
+                        document.getElementById('ai-threshold').value = modelInfo.confidence_threshold;
+                    }
+                } else {
+                    document.getElementById('ai-status').textContent = 'OFFLINE';
+                    document.getElementById('ai-status').className = 'status-badge status-inactive';
+                }
+
+                document.getElementById('network-interface').textContent = 'eth0';
+            } catch(e) {
+                console.error('Error loading settings:', e);
+            }
+        }
+
+        loadSettings();
+        setInterval(loadSettings, 5000);
+    </script>
+</body>
+</html>
