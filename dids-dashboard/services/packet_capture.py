@@ -461,8 +461,7 @@ class PacketCaptureService:
                 iface=interface,
                 prn=lambda p: self.store_packet(self.analyze_packet(p)),
                 store=False,
-                stop_filter=lambda p: self.capture_event.is_set(),
-                timeout=5  # Test for 5 seconds first
+                stop_filter=lambda p: self.capture_event.is_set()
             )
             logger.info("✓ Real packet capture started successfully")
 
@@ -508,10 +507,9 @@ class PacketCaptureService:
             self.demo_mode = False
         else:
             self.capture_event.clear()
-            # Start a new capture thread
-            if self.demo_mode or True:  # Always start demo mode for now
-                self.demo_thread = Thread(target=self.run_demo_mode, daemon=True)
-                self.demo_thread.start()
+            # Start a new capture thread - try real capture first, falls back to demo if needed
+            capture_thread = Thread(target=self.capture_packets, daemon=True)
+            capture_thread.start()
         
         return self.capture_active
     
