@@ -23,7 +23,7 @@ class AIDetectionService:
             model_path: Path to model directory (default: ./models)
         """
         self.config = config
-        self.model_path = Path(model_path or 'models')
+        self.model_path = Path(model_path or 'model')
         
         # Model components
         self.model = None
