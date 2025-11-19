@@ -1,0 +1,504 @@
+from datetime import datetime
+from typing import Dict, List, Any
+from collections import defaultdict
+import logging
+import random
+
+logger = logging.getLogger(__name__)
+
+
+class ThreatDetectionService:
+    """Service for detecting and managing security threats"""
+    
+    def __init__(self, config):
+        self.config = config
+        self.signature_detections = []
+        
+        # Track scanning activity per IP
+        self.scan_tracker = defaultdict(lambda: {'ports': set(), 'first_seen': None, 'count': 0})
+        self.dns_tracker = defaultdict(lambda: {'queries': 0, 'first_seen': None})
+        
+        # Whitelisted IPs (known good services)
+        self.whitelisted_ips = {
+            '1.1.1.1',      # Cloudflare DNS
+            '1.0.0.1',      # Cloudflare DNS
+            '8.8.8.8',      # Google DNS
+            '8.8.4.4',      # Google DNS
+            '9.9.9.9',      # Quad9 DNS
+        }
+        
+        # Whitelisted ports (common legitimate services)
+        self.whitelisted_ports = {
+            20,   # FTP Data
+            21,   # FTP Control
+            22,   # SSH
+            25,   # SMTP
+            53,   # DNS
+            80,   # HTTP
+            110,  # POP3
+            143,  # IMAP
+            443,  # HTTPS
+            465,  # SMTPS
+            587,  # SMTP Submission
+            993,  # IMAPS
+            995,  # POP3S
+            3306, # MySQL
+            5432, # PostgreSQL
+            8080, # HTTP Alt
+            8443, # HTTPS Alt
+        }
+        
+        # Enhanced threat signatures with lower false positive rates
+        self.threat_signatures = {
+            'ET MALWARE C2 Communication': {
+                'port': 4444,
+                'pattern': b'\x90\x90\x90',
+                'severity': 'critical',
+                'description': 'Known malware command and control beacon pattern'
+            },
+            
+            'ET MALWARE Reverse Shell': {
+                'ports': [4444, 5555, 6666, 7777, 31337],
+                'severity': 'critical',
+                'description': 'Connection to common backdoor/reverse shell port'
+            },
+            
+            'ET TROJAN Known C2 Server': {
+                'suspicious_ips': ['192.168.1.100'],  # Example - add real threat IPs
+                'severity': 'high',
+                'description': 'Communication with known malicious IP address'
+            },
+            
+            'ET WEB SQL Injection Attempt': {
+                'patterns': [
+                    b"' OR '1'='1",
+                    b"' OR 1=1--",
+                    b"'; DROP TABLE",
+                    b"UNION SELECT",
+                ],
+                'severity': 'high',
+                'description': 'SQL injection attack pattern detected'
+            },
+            
+            'ET WEB XSS Attack': {
+                'patterns': [
+                    b'<script>',
+                    b'javascript:',
+                    b'onerror=',
+                    b'onload=',
+                ],
+                'severity': 'high',
+                'description': 'Cross-site scripting attack pattern'
+            },
+            
+            'ET WEB Directory Traversal': {
+                'patterns': [
+                    b'../',
+                    b'..\\',
+                    b'%2e%2e%2f',
+                    b'%252e%252e%252f',
+                ],
+                'severity': 'medium',
+                'description': 'Directory traversal attempt detected'
+            },
+            
+            'ET SCAN Aggressive Port Scan': {
+                'scan_threshold': 15,  # 15+ different ports in 60 seconds
+                'time_window': 60,
+                'severity': 'medium',
+                'description': 'Aggressive port scanning activity detected'
+            },
+            
+            'ET DNS Excessive Queries': {
+                'query_threshold': 100,  # 100+ queries in 60 seconds
+                'time_window': 60,
+                'severity': 'low',
+                'description': 'Unusual number of DNS queries (possible DNS tunneling)'
+            },
+            
+            'ET ATTACK Brute Force SSH': {
+                'port': 22,
+                'connection_threshold': 10,  # 10+ connections in 60 seconds
+                'time_window': 60,
+                'severity': 'high',
+                'description': 'Potential SSH brute force attack'
+            },
+        }
+    
+    def is_whitelisted(self, ip: str, port: int = None) -> bool:
+        """
+        Check if IP or port is whitelisted.
+        
+        Args:
+            ip: IP address to check
+            port: Optional port number to check
+            
+        Returns:
+            True if whitelisted, False otherwise
+        """
+        if ip in self.whitelisted_ips:
+            return True
+        
+        if port and port in self.whitelisted_ports:
+            return True
+        
+        # Whitelist private IP ranges (RFC 1918)
+        if ip.startswith(('10.', '172.16.', '192.168.')):
+            # Allow internal network traffic
+            return True
+        
+        # Whitelist multicast addresses
+        if ip.startswith('224.'):
+            return True
+        
+        return False
+    
+    def detect_port_scan(self, src: str, dst_port: int) -> bool:
+        """
+        Detect port scanning behavior.
+        
+        Args:
+            src: Source IP address
+            dst_port: Destination port
+            
+        Returns:
+            True if port scan detected, False otherwise
+        """
+        now = datetime.now()
+        tracker = self.scan_tracker[src]
+        
+        # Initialize first seen time
+        if tracker['first_seen'] is None:
+            tracker['first_seen'] = now
+        
+        # Check if within time window
+        time_diff = (now - tracker['first_seen']).total_seconds()
+        
+        # Reset if outside time window
+        if time_diff > 60:  # 60 seconds window
+            tracker['ports'] = {dst_port}
+            tracker['first_seen'] = now
+            tracker['count'] = 1
+            return False
+        
+        # Add port to tracker
+        tracker['ports'].add(dst_port)
+        tracker['count'] += 1
+        
+        # Check if threshold exceeded
+        if len(tracker['ports']) >= 15:  # 15+ unique ports
+            logger.warning(f"Port scan detected from {src}: {len(tracker['ports'])} ports in {time_diff:.1f}s")
+            # Reset after detection
+            tracker['ports'] = set()
+            tracker['first_seen'] = None
+            return True
+        
+        return False
+    
+    def detect_dns_anomaly(self, src: str) -> bool:
+        """
+        Detect DNS query anomalies (possible DNS tunneling).
+        
+        Args:
+            src: Source IP address
+            
+        Returns:
+            True if anomaly detected, False otherwise
+        """
+        now = datetime.now()
+        tracker = self.dns_tracker[src]
+        
+        # Initialize first seen time
+        if tracker['first_seen'] is None:
+            tracker['first_seen'] = now
+            tracker['queries'] = 1
+            return False
+        
+        # Check if within time window
+        time_diff = (now - tracker['first_seen']).total_seconds()
+        
+        # Reset if outside time window
+        if time_diff > 60:  # 60 seconds window
+            tracker['queries'] = 1
+            tracker['first_seen'] = now
+            return False
+        
+        # Increment query count
+        tracker['queries'] += 1
+        
+        # Check if threshold exceeded
+        if tracker['queries'] >= 100:  # 100+ queries in 60 seconds
+            logger.warning(f"DNS anomaly detected from {src}: {tracker['queries']} queries in {time_diff:.1f}s")
+            # Reset after detection
+            tracker['queries'] = 0
+            tracker['first_seen'] = None
+            return True
+        
+        return False
+    
+    def check_payload_signatures(self, payload: bytes) -> List[str]:
+        """
+        Check payload against known attack patterns.
+        
+        Args:
+            payload: Packet payload bytes
+            
+        Returns:
+            List of matching signature names
+        """
+        matches = []
+        
+        if not payload or len(payload) == 0:
+            return matches
+        
+        # SQL Injection patterns
+        sql_patterns = self.threat_signatures.get('ET WEB SQL Injection Attempt', {}).get('patterns', [])
+        for pattern in sql_patterns:
+            if pattern in payload:
+                matches.append('ET WEB SQL Injection Attempt')
+                break
+        
+        # XSS patterns
+        xss_patterns = self.threat_signatures.get('ET WEB XSS Attack', {}).get('patterns', [])
+        for pattern in xss_patterns:
+            if pattern in payload:
+                matches.append('ET WEB XSS Attack')
+                break
+        
+        # Directory traversal patterns
+        traversal_patterns = self.threat_signatures.get('ET WEB Directory Traversal', {}).get('patterns', [])
+        for pattern in traversal_patterns:
+            if pattern in payload:
+                matches.append('ET WEB Directory Traversal')
+                break
+        
+        # Malware C2 pattern
+        if b'\x90\x90\x90' in payload:
+            matches.append('ET MALWARE C2 Communication')
+        
+        return matches
+    
+    def log_threat(self, signature: str, src: str, dst: str, 
+                   additional_info: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Log a detected threat.
+        
+        Args:
+            signature: Threat signature name
+            src: Source IP address
+            dst: Destination IP address
+            additional_info: Additional threat information
+            
+        Returns:
+            Detection record dictionary
+        """
+        # Skip if whitelisted
+        if self.is_whitelisted(src) and self.is_whitelisted(dst):
+            return None
+        
+        action = self._determine_action(signature)
+        
+        detection = {
+            'timestamp': datetime.now().isoformat(),
+            'signature': signature,
+            'source': src,
+            'destination': dst,
+            'action': action,
+            'severity': self._get_severity(signature),
+            'description': self._get_description(signature)
+        }
+        
+        if additional_info:
+            detection.update(additional_info)
+        
+        self.signature_detections.append(detection)
+        
+        # Keep only recent detections
+        max_detections = getattr(self.config, 'THREAT_DETECTION_BUFFER', 20) * 10
+        if len(self.signature_detections) > max_detections:
+            self.signature_detections = self.signature_detections[-max_detections:]
+        
+        logger.warning(
+            f"Threat {action}: {signature} from {src} to {dst} "
+            f"(Severity: {detection['severity']})"
+        )
+        
+        return detection
+    
+    def _determine_action(self, signature: str) -> str:
+        """
+        Determine action to take for a threat.
+        
+        Args:
+            signature: Threat signature name
+            
+        Returns:
+            Action string ('blocked', 'alert', 'logged')
+        """
+        severity = self._get_severity(signature)
+        
+        if severity == 'critical':
+            return 'blocked'
+        elif severity == 'high':
+            return 'blocked' if random.random() > 0.2 else 'alert'
+        elif severity == 'medium':
+            return 'alert' if random.random() > 0.3 else 'logged'
+        else:
+            return 'logged'
+    
+    def _get_severity(self, signature: str) -> str:
+        """Get severity level for a signature"""
+        for name, sig in self.threat_signatures.items():
+            if name == signature:
+                return sig.get('severity', 'medium')
+        return 'medium'
+    
+    def _get_description(self, signature: str) -> str:
+        """Get description for a signature"""
+        for name, sig in self.threat_signatures.items():
+            if name == signature:
+                return sig.get('description', 'Unknown threat')
+        return 'Unknown threat'
+    
+    def get_recent_threats(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        Get recent threat detections.
+        
+        Args:
+            limit: Maximum number of threats to return
+            
+        Returns:
+            List of threat detection records
+        """
+        return self.signature_detections[-limit:]
+    
+    def get_threat_statistics(self) -> Dict[str, Any]:
+        """
+        Get threat statistics.
+        
+        Returns:
+            Dictionary containing threat statistics
+        """
+        total_threats = len(self.signature_detections)
+        
+        # Count by severity
+        severity_count = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
+        for detection in self.signature_detections:
+            severity = detection.get('severity', 'medium')
+            severity_count[severity] = severity_count.get(severity, 0) + 1
+        
+        # Count by action
+        action_count = {}
+        for detection in self.signature_detections:
+            action = detection.get('action', 'logged')
+            action_count[action] = action_count.get(action, 0) + 1
+        
+        # Count by signature type
+        signature_count = {}
+        for detection in self.signature_detections:
+            sig = detection.get('signature', 'unknown')
+            signature_count[sig] = signature_count.get(sig, 0) + 1
+        
+        # Get top attackers
+        attacker_count = defaultdict(int)
+        for detection in self.signature_detections:
+            src = detection.get('source', 'unknown')
+            attacker_count[src] += 1
+        
+        top_attackers = dict(sorted(
+            attacker_count.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )[:5])
+        
+        return {
+            'total_threats': total_threats,
+            'by_severity': severity_count,
+            'by_action': action_count,
+            'by_signature': signature_count,
+            'blocked_count': action_count.get('blocked', 0),
+            'top_attackers': top_attackers
+        }
+    
+    def clear_old_detections(self, hours: int = 24) -> int:
+        """
+        Clear threat detections older than specified hours.
+        
+        Args:
+            hours: Number of hours to retain
+            
+        Returns:
+            Number of detections cleared
+        """
+        cutoff_time = datetime.now().timestamp() - (hours * 3600)
+        original_count = len(self.signature_detections)
+        
+        self.signature_detections = [
+            d for d in self.signature_detections
+            if datetime.fromisoformat(d['timestamp']).timestamp() > cutoff_time
+        ]
+        
+        cleared = original_count - len(self.signature_detections)
+        if cleared > 0:
+            logger.info(f"Cleared {cleared} old threat detections")
+        
+        return cleared
+    
+    def add_custom_signature(self, name: str, signature_config: Dict[str, Any]) -> bool:
+        """
+        Add a custom threat signature.
+        
+        Args:
+            name: Signature name
+            signature_config: Signature configuration dictionary
+            
+        Returns:
+            True if added successfully
+        """
+        if name in self.threat_signatures:
+            logger.warning(f"Signature '{name}' already exists")
+            return False
+        
+        self.threat_signatures[name] = signature_config
+        logger.info(f"Added custom signature: {name}")
+        return True
+    
+    def remove_signature(self, name: str) -> bool:
+        """
+        Remove a threat signature.
+        
+        Args:
+            name: Signature name
+            
+        Returns:
+            True if removed successfully
+        """
+        if name in self.threat_signatures:
+            del self.threat_signatures[name]
+            logger.info(f"Removed signature: {name}")
+            return True
+        return False
+    
+    def get_all_signatures(self) -> Dict[str, Dict[str, Any]]:
+        """Get all threat signatures"""
+        return self.threat_signatures.copy()
+    
+    def add_to_whitelist(self, ip: str) -> None:
+        """Add IP to whitelist"""
+        self.whitelisted_ips.add(ip)
+        logger.info(f"Added {ip} to whitelist")
+    
+    def remove_from_whitelist(self, ip: str) -> bool:
+        """Remove IP from whitelist"""
+        if ip in self.whitelisted_ips:
+            self.whitelisted_ips.remove(ip)
+            logger.info(f"Removed {ip} from whitelist")
+            return True
+        return False
+    
+    def get_whitelist(self) -> Dict[str, Any]:
+        """Get current whitelist configuration"""
+        return {
+            'whitelisted_ips': list(self.whitelisted_ips),
+            'whitelisted_ports': list(self.whitelisted_ports)
+        }
