@@ -11,6 +11,20 @@ from collections import defaultdict
 logger = logging.getLogger(__name__)
 
 
+class SimpleLabelEncoder:
+    """Simple label encoder for attack types"""
+
+    def __init__(self, classes: List[str]):
+        self.classes_ = np.array(classes)
+        self._class_to_idx = {cls: idx for idx, cls in enumerate(classes)}
+
+    def transform(self, labels: List[str]) -> np.ndarray:
+        return np.array([self._class_to_idx[label] for label in labels])
+
+    def inverse_transform(self, indices: np.ndarray) -> List[str]:
+        return [self.classes_[idx] for idx in indices]
+
+
 class AIDetectionService:
     """Service for AI-powered network intrusion detection using trained model"""
     
@@ -60,18 +74,27 @@ class AIDetectionService:
     def load_model(self) -> bool:
         """
         Load trained model and preprocessing components.
-        
+
         Returns:
             True if successful, False otherwise
         """
         try:
             logger.info(f"Loading AI detection model from {self.model_path}")
-            
+
+            # Load model configuration first (needed for class names and features)
+            config_file = self.model_path / 'dids_config.json'
+            if config_file.exists():
+                with open(config_file, 'r') as f:
+                    self.model_config = json.load(f)
+                logger.info("✓ Loaded model configuration")
+            else:
+                logger.warning("Model configuration not found")
+
             # Load Keras model
             model_file = self.model_path / 'dids_final.keras'
             if not model_file.exists():
                 model_file = self.model_path / 'dids.keras'
-            
+
             if model_file.exists():
                 # Import TensorFlow only when needed
                 import tensorflow as tf
@@ -80,54 +103,78 @@ class AIDetectionService:
             else:
                 logger.error("Model file not found")
                 return False
-            
-            # Load scaler
+
+            # Load scaler (optional)
             scaler_file = self.model_path / 'scaler.pkl'
             if scaler_file.exists():
-                with open(scaler_file, 'rb') as f:
-                    self.scaler = pickle.load(f)
-                logger.info("✓ Loaded scaler")
+                try:
+                    with open(scaler_file, 'rb') as f:
+                        self.scaler = pickle.load(f)
+                    logger.info("✓ Loaded scaler")
+                except Exception as e:
+                    logger.warning(f"Failed to load scaler: {e} - using default normalization")
+                    self.scaler = None
             else:
                 logger.warning("Scaler not found - using default normalization")
-            
-            # Load label encoder
+                self.scaler = None
+
+            # Load or create label encoder
             encoder_file = self.model_path / 'label_encoder.pkl'
             if encoder_file.exists():
-                with open(encoder_file, 'rb') as f:
-                    self.label_encoder = pickle.load(f)
-                logger.info(f"✓ Loaded label encoder with {len(self.label_encoder.classes_)} classes")
+                try:
+                    with open(encoder_file, 'rb') as f:
+                        self.label_encoder = pickle.load(f)
+                    logger.info(f"✓ Loaded label encoder with {len(self.label_encoder.classes_)} classes")
+                except Exception as e:
+                    logger.warning(f"Failed to load label encoder: {e}")
+                    # Fall back to config class names
+                    if self.model_config and 'class_names' in self.model_config:
+                        self.label_encoder = SimpleLabelEncoder(self.model_config['class_names'])
+                        logger.info(f"✓ Created label encoder from config with {len(self.label_encoder.classes_)} classes")
+                    else:
+                        logger.error("No label encoder or class names available")
+                        return False
             else:
-                logger.error("Label encoder not found")
-                return False
-            
-            # Load feature names
+                # Create label encoder from config
+                if self.model_config and 'class_names' in self.model_config:
+                    self.label_encoder = SimpleLabelEncoder(self.model_config['class_names'])
+                    logger.info(f"✓ Created label encoder from config with {len(self.label_encoder.classes_)} classes")
+                else:
+                    logger.error("Label encoder not found and no class names in config")
+                    return False
+
+            # Load feature names from JSON or config
             feature_file = self.model_path / 'feature_names.json'
             if feature_file.exists():
                 with open(feature_file, 'r') as f:
-                    self.feature_names = json.load(f)
-                logger.info(f"✓ Loaded {len(self.feature_names)} feature names")
+                    feature_data = json.load(f)
+                    # Handle both list format and dict format
+                    if isinstance(feature_data, list):
+                        self.feature_names = feature_data
+                    elif isinstance(feature_data, dict):
+                        self.feature_names = feature_data.get('features', [])
+                    logger.info(f"✓ Loaded {len(self.feature_names)} feature names")
+            elif self.model_config and 'feature_names' in self.model_config:
+                self.feature_names = self.model_config['feature_names']
+                logger.info(f"✓ Loaded {len(self.feature_names)} feature names from config")
             else:
                 logger.warning("Feature names not found - using default order")
-            
-            # Load model configuration
-            config_file = self.model_path / 'dids_config.json'
-            if config_file.exists():
-                with open(config_file, 'r') as f:
-                    self.model_config = json.load(f)
-                logger.info("✓ Loaded model configuration")
-            
+                self.feature_names = None
+
             # Load metrics
             metrics_file = self.model_path / 'dids_metrics.json'
             if metrics_file.exists():
                 with open(metrics_file, 'r') as f:
                     self.metrics = json.load(f)
                 logger.info("✓ Loaded model metrics")
-            
+
             logger.info("AI Detection Service initialized successfully")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False
     
     def extract_flow_features(self, packet_data: Dict[str, Any]) -> Optional[Dict[str, float]]:
