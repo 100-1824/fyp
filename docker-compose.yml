@@ -1,0 +1,334 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # Database Services
+  # ============================================================================
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: dids-postgres
+    environment:
+      POSTGRES_DB: dids
+      POSTGRES_USER: dids_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - dids-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dids_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: dids-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - dids-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ============================================================================
+  # Message Queue
+  # ============================================================================
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: dids-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: dids
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-changeme}
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - dids-network
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ============================================================================
+  # Traffic Capture Service
+  # ============================================================================
+
+  traffic-capture:
+    build:
+      context: ./traffic-capture
+      dockerfile: Dockerfile
+    container_name: dids-traffic-capture
+    network_mode: host  # Required for packet capture
+    privileged: true    # Required for packet capture
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      INTERFACE: ${CAPTURE_INTERFACE:-eth0}
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      LOG_LEVEL: INFO
+    volumes:
+      - ./traffic-capture:/app
+      - pcap_data:/data/pcaps
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ============================================================================
+  # Signature-Based Detection (Suricata)
+  # ============================================================================
+
+  suricata:
+    build:
+      context: ./signature-detection
+      dockerfile: Dockerfile
+    container_name: dids-suricata
+    network_mode: host
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      SURICATA_INTERFACE: ${SURICATA_INTERFACE:-eth0}
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+    volumes:
+      - ./signature-detection/rules:/etc/suricata/rules
+      - ./signature-detection/config:/etc/suricata
+      - suricata_logs:/var/log/suricata
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ============================================================================
+  # Anomaly Detection Service
+  # ============================================================================
+
+  anomaly-detection:
+    build:
+      context: ./anomaly-detection
+      dockerfile: Dockerfile
+    container_name: dids-anomaly-detection
+    environment:
+      MODEL_PATH: /models/dids_final.keras
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      LOG_LEVEL: INFO
+    volumes:
+      - ./dids-dashboard/model:/models:ro
+      - ./anomaly-detection:/app
+    networks:
+      - dids-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # ============================================================================
+  # RL Agent Service
+  # ============================================================================
+
+  rl-agent:
+    build:
+      context: ./rl_module
+      dockerfile: Dockerfile
+    container_name: dids-rl-agent
+    environment:
+      MODEL_PATH: /models/double_dqn_final.keras
+      TARGET_MODEL_PATH: /models/double_dqn_final_target.keras
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      LOG_LEVEL: INFO
+      FAIL_SAFE_MODE: ${RL_FAILSAFE:-true}
+    volumes:
+      - ./dids-dashboard/model:/models:ro
+      - ./rl_module:/app
+      - rl_logs:/var/log/rl-agent
+    networks:
+      - dids-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # ============================================================================
+  # Alert Management Service
+  # ============================================================================
+
+  alert-service:
+    build:
+      context: ./microservices/alert-service
+      dockerfile: Dockerfile
+    container_name: dids-alert-service
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: dids
+      POSTGRES_USER: dids_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+    ports:
+      - "8001:8000"
+    networks:
+      - dids-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # ============================================================================
+  # Threat Intelligence Service
+  # ============================================================================
+
+  threat-intel:
+    build:
+      context: ./microservices/threat-intel
+      dockerfile: Dockerfile
+    container_name: dids-threat-intel
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      UPDATE_INTERVAL: ${TI_UPDATE_INTERVAL:-3600}
+      FEED_SOURCES: ${TI_FEED_SOURCES:-default}
+    ports:
+      - "8002:8000"
+    networks:
+      - dids-network
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ============================================================================
+  # Dashboard Backend (API)
+  # ============================================================================
+
+  dashboard-api:
+    build:
+      context: ./dids-dashboard
+      dockerfile: Dockerfile.backend
+    container_name: dids-dashboard-api
+    environment:
+      NODE_ENV: production
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: dids
+      POSTGRES_USER: dids_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-changeme}
+    ports:
+      - "3001:3000"
+    networks:
+      - dids-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ============================================================================
+  # Dashboard Frontend
+  # ============================================================================
+
+  dashboard-frontend:
+    build:
+      context: ./dids-dashboard
+      dockerfile: Dockerfile.frontend
+    container_name: dids-dashboard-frontend
+    environment:
+      REACT_APP_API_URL: http://localhost:3001
+      REACT_APP_WS_URL: ws://localhost:3001
+    ports:
+      - "3000:80"
+    networks:
+      - dids-network
+    depends_on:
+      - dashboard-api
+
+  # ============================================================================
+  # Monitoring (Prometheus)
+  # ============================================================================
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: dids-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    networks:
+      - dids-network
+
+  # ============================================================================
+  # Monitoring (Grafana)
+  # ============================================================================
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: dids-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3002:3000"
+    networks:
+      - dids-network
+    depends_on:
+      - prometheus
+
+# ============================================================================
+# Networks
+# ============================================================================
+
+networks:
+  dids-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# ============================================================================
+# Volumes
+# ============================================================================
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  pcap_data:
+  suricata_logs:
+  rl_logs:
+  prometheus_data:
+  grafana_data:
