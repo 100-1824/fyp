@@ -2,6 +2,7 @@ flask
 flask-pymongo
 flask-bcrypt
 flask-login
+flask-cors
 numpy
 pandas
 scikit-learn
@@ -11,3 +12,4 @@ python-dotenv
 netifaces
 pyyaml
 gym>=0.26.0
+requests>=2.31.0
