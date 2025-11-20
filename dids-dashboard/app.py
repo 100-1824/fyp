@@ -23,6 +23,9 @@ from routes import (
     init_api_routes
 )
 
+# Import dashboard API
+from api import init_dashboard_api
+
 
 def create_app(config_name='default'):
     """
@@ -119,11 +122,15 @@ def create_app(config_name='default'):
     main_bp = init_main_routes(app, mongo, user_service)
     admin_bp = init_admin_routes(app, user_service)
     api_bp = init_api_routes(app, packet_service, threat_service, ai_service)
-    
+
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(api_bp)
+
+    # Register dashboard API
+    init_dashboard_api(app)
+    app.logger.info("✓ Dashboard API registered at /api/v1")
     
     # Start packet capture in background thread
     if not app.config.get('TESTING'):

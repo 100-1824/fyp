@@ -42,6 +42,13 @@ class Config:
     RATELIMIT_ENABLED = False
     RATELIMIT_DEFAULT = "100/hour"
 
+    # Microservices URLs
+    API_GATEWAY_URL = os.environ.get('API_GATEWAY_URL') or 'http://localhost:5000'
+    TRAFFIC_CAPTURE_URL = os.environ.get('TRAFFIC_CAPTURE_URL') or 'http://localhost:5001'
+    SIGNATURE_DETECTION_URL = os.environ.get('SIGNATURE_DETECTION_URL') or 'http://localhost:5002'
+    AI_DETECTION_URL = os.environ.get('AI_DETECTION_URL') or 'http://localhost:5003'
+    RL_DETECTION_URL = os.environ.get('RL_DETECTION_URL') or 'http://localhost:5004'
+
 
 class DevelopmentConfig(Config):
     """Development configuration"""
