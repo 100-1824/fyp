@@ -20,24 +20,38 @@ print("Installing dependencies...")
 # UPLOAD DATA CELL - Run Second
 # ============================================================================
 """
-Upload these 4 files from your project:
-- ml-training/data/preprocessed/X_train.npy
-- ml-training/data/preprocessed/X_test.npy
-- ml-training/data/preprocessed/y_train.npy
-- ml-training/data/preprocessed/y_test.npy
+Upload the training_data.tar.gz file from your project root.
+The script will automatically extract the data files.
 
-Use the file upload button in Colab or run:
+Alternative: Upload these 4 files individually:
+- X_train.npy
+- X_test.npy
+- y_train.npy
+- y_test.npy
 """
 from google.colab import files
 import os
+import tarfile
 
-print("Upload the 4 training data files (X_train.npy, X_test.npy, y_train.npy, y_test.npy):")
+print("Upload training_data.tar.gz (or individual .npy files):")
 uploaded = files.upload()
 
-# Create directory structure
-os.makedirs('data', exist_ok=True)
+# Check if tar.gz was uploaded and extract it
 for filename in uploaded.keys():
     print(f'Uploaded: {filename}')
+    if filename.endswith('.tar.gz') or filename.endswith('.tgz'):
+        print(f"Extracting {filename}...")
+        with tarfile.open(filename, 'r:gz') as tar:
+            tar.extractall()
+        print("Extraction complete!")
+
+# List extracted files
+print("\nAvailable data files:")
+import glob
+npy_files = glob.glob('*.npy')
+for f in npy_files:
+    size_mb = os.path.getsize(f) / (1024 * 1024)
+    print(f"  - {f} ({size_mb:.2f} MB)")
 
 # ============================================================================
 # DQN AGENT IMPLEMENTATION
@@ -264,13 +278,20 @@ def train_rl_agent(episodes=100, max_steps=1000):
     logger.info(f"Max steps per episode: {max_steps}")
     logger.info("="*70)
 
+    # Track best performance
+    best_f1 = 0
+    best_episode = 0
+
     for episode in range(episodes):
         state = env.reset()
         episode_reward = 0
         episode_losses = []
 
+        # Show progress bar for current episode
+        steps_completed = min(max_steps, len(X_train))
+
         # Run episode
-        for step in range(min(max_steps, len(X_train))):
+        for step in range(steps_completed):
             # Agent selects action
             action = agent.act(state, training=True)
 
@@ -303,27 +324,55 @@ def train_rl_agent(episodes=100, max_steps=1000):
         episode_accuracies.append(stats['accuracy'])
         episode_f1_scores.append(stats['f1_score'])
 
-        # Log progress every 10 episodes
-        if (episode + 1) % 10 == 0:
-            avg_reward = np.mean(episode_rewards[-10:])
-            avg_accuracy = np.mean(episode_accuracies[-10:])
-            avg_f1 = np.mean(episode_f1_scores[-10:])
-            avg_loss = np.mean(episode_losses) if episode_losses else 0
+        # Track best performance
+        if stats['f1_score'] > best_f1:
+            best_f1 = stats['f1_score']
+            best_episode = episode + 1
 
+        # Log progress EVERY episode with progress bar
+        avg_reward = np.mean(episode_rewards[-10:]) if len(episode_rewards) >= 10 else np.mean(episode_rewards)
+        avg_accuracy = np.mean(episode_accuracies[-10:]) if len(episode_accuracies) >= 10 else np.mean(episode_accuracies)
+        avg_f1 = np.mean(episode_f1_scores[-10:]) if len(episode_f1_scores) >= 10 else np.mean(episode_f1_scores)
+        avg_loss = np.mean(episode_losses) if episode_losses else 0
+
+        # Progress bar
+        progress = (episode + 1) / episodes
+        bar_length = 40
+        filled = int(bar_length * progress)
+        bar = '█' * filled + '░' * (bar_length - filled)
+
+        # Clear line and print progress (works in Colab)
+        print(f"\r[{bar}] {progress*100:.1f}% | "
+              f"Episode {episode+1}/{episodes} | "
+              f"Reward: {episode_reward:.1f} | "
+              f"Acc: {stats['accuracy']:.3f} | "
+              f"F1: {stats['f1_score']:.3f} | "
+              f"ε: {agent.epsilon:.3f}",
+              end='', flush=True)
+
+        # Detailed log every 10 episodes
+        if (episode + 1) % 10 == 0:
+            print()  # New line after progress bar
             logger.info(
-                f"Episode {episode+1}/{episodes} | "
-                f"Reward: {episode_reward:.2f} (avg: {avg_reward:.2f}) | "
-                f"Acc: {stats['accuracy']:.3f} (avg: {avg_accuracy:.3f}) | "
-                f"F1: {stats['f1_score']:.3f} (avg: {avg_f1:.3f}) | "
-                f"Epsilon: {agent.epsilon:.3f} | "
-                f"Loss: {avg_loss:.4f}"
+                f"📊 Episode {episode+1}/{episodes} Summary:\n"
+                f"   Reward: {episode_reward:.2f} (10-ep avg: {avg_reward:.2f})\n"
+                f"   Accuracy: {stats['accuracy']:.3f} (10-ep avg: {avg_accuracy:.3f})\n"
+                f"   Precision: {stats['precision']:.3f} | Recall: {stats['recall']:.3f}\n"
+                f"   F1 Score: {stats['f1_score']:.3f} (10-ep avg: {avg_f1:.3f})\n"
+                f"   Epsilon: {agent.epsilon:.3f} | Loss: {avg_loss:.4f}\n"
+                f"   Best F1: {best_f1:.3f} at episode {best_episode}"
             )
 
+    print()  # New line after final progress bar
     logger.info("="*70)
-    logger.info("Training completed!")
+    logger.info("🎉 Training completed!")
     logger.info("="*70)
-    logger.info(f"Final Accuracy: {np.mean(episode_accuracies[-10:]):.3f}")
-    logger.info(f"Final F1 Score: {np.mean(episode_f1_scores[-10:]):.3f}")
+    logger.info(f"Final 10-Episode Average Accuracy: {np.mean(episode_accuracies[-10:]):.3f}")
+    logger.info(f"Final 10-Episode Average F1 Score: {np.mean(episode_f1_scores[-10:]):.3f}")
+    logger.info(f"Best F1 Score Achieved: {best_f1:.3f} (Episode {best_episode})")
+    logger.info(f"Total Episodes: {episodes}")
+    logger.info(f"Final Epsilon: {agent.epsilon:.3f}")
+    logger.info("="*70)
 
     return agent
 
