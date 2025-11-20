@@ -6,6 +6,7 @@
     <title>Settings - DIDS</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="{{ url_for('static', filename='js/interactive-utils.js') }}"></script>
     <style>
         * {
             margin: 0;
@@ -695,11 +696,12 @@
             const threshold = parseFloat(document.getElementById('ai-threshold').value);
 
             if (threshold < 0 || threshold > 1) {
-                alert('Threshold must be between 0.0 and 1.0');
+                toast.warning('Threshold must be between 0.0 and 1.0');
                 return;
             }
 
             try {
+                loading.show('Updating AI threshold...');
                 const response = await fetch('/api/ai-threshold', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -707,15 +709,18 @@
                 });
 
                 const data = await response.json();
+                loading.hide();
 
                 if (data.success) {
-                    alert('AI threshold updated successfully to ' + (threshold * 100).toFixed(0) + '%');
+                    toast.success('AI threshold updated to ' + (threshold * 100).toFixed(0) + '%');
+                    pulseElement('ai-threshold');
                 } else {
-                    alert('Failed to update threshold: ' + (data.error || 'Unknown error'));
+                    toast.error('Failed to update threshold: ' + (data.error || 'Unknown error'));
                 }
             } catch(e) {
                 console.error('Error updating threshold:', e);
-                alert('Failed to update threshold');
+                loading.hide();
+                toast.error('Failed to update threshold');
             }
         }
 
@@ -725,9 +730,9 @@
                 const aiStats = await fetch('/api/ai-stats').then(r => r.json());
                 const modelInfo = await fetch('/api/ai-model-info').then(r => r.json());
 
-                document.getElementById('total-packets').textContent = stats.total_packets.toLocaleString();
+                animateNumber('total-packets', stats.total_packets);
                 const totalThreats = (stats.threats_blocked || 0) + (aiStats.total_detections || 0);
-                document.getElementById('total-threats').textContent = totalThreats.toLocaleString();
+                animateNumber('total-threats', totalThreats);
 
                 if (modelInfo.model_loaded) {
                     document.getElementById('ai-status').textContent = 'ACTIVE';
@@ -743,6 +748,7 @@
                 document.getElementById('network-interface').textContent = 'eth0';
             } catch(e) {
                 console.error('Error loading settings:', e);
+                toast.error('Failed to load settings data');
             }
         }
 

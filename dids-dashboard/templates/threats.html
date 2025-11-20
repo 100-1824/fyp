@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="{{ url_for('static', filename='js/interactive-utils.js') }}"></script>
     <style>
         * {
             margin: 0;
@@ -537,7 +538,25 @@
                         <i class="fas fa-list"></i>
                         All Threats
                     </h3>
-                    <span style="font-size: 12px; color: var(--text-light);" id="last-update">Just now</span>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <select id="filter-detection" style="padding: 6px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px;">
+                            <option value="">All Detection Types</option>
+                            <option value="ai">AI Only</option>
+                            <option value="signature">Signature Only</option>
+                        </select>
+                        <select id="filter-action" style="padding: 6px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px;">
+                            <option value="">All Actions</option>
+                            <option value="blocked">Blocked</option>
+                            <option value="alert">Alert</option>
+                        </select>
+                        <input type="text" id="threat-search" placeholder="Search threats..."
+                               style="padding: 6px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; width: 180px;">
+                        <button onclick="exportThreatsData()" style="padding: 6px 12px; background: var(--primary); color: white;
+                                border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                        <span style="font-size: 12px; color: var(--text-light);" id="last-update">Just now</span>
+                    </div>
                 </div>
                 <div class="table-container">
                     <table>
@@ -588,51 +607,114 @@
             }
         });
 
+        let currentThreatsData = [];
+        let previousThreatCount = 0;
+        let filteredData = [];
+
         async function updateThreats() {
             try {
                 const data = await fetch('/api/combined-threats').then(r => r.json());
-                const tbody = document.getElementById('threats-body');
+                currentThreatsData = data;
+                filteredData = data;
 
-                if (!data || data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="fas fa-check-circle"></i><p>No threats detected</p></div></td></tr>';
-                    return;
+                // Apply filters
+                applyFilters();
+
+                // Show notification for new threats
+                if (data.length > previousThreatCount) {
+                    const newCount = data.length - previousThreatCount;
+                    toast.warning(`${newCount} new threat${newCount > 1 ? 's' : ''} detected!`, 5000);
+                    pulseElement('total-threats');
                 }
-
-                const sigThreats = data.filter(t => t.detection_method !== 'ai').length;
-                const aiThreats = data.filter(t => t.detection_method === 'ai').length;
-                const blockedThreats = data.filter(t => t.action === 'blocked').length;
-
-                document.getElementById('total-threats').textContent = data.length;
-                document.getElementById('sig-threats').textContent = sigThreats;
-                document.getElementById('ai-threats').textContent = aiThreats;
-                document.getElementById('blocked-threats').textContent = blockedThreats;
-
-                tbody.innerHTML = '';
-                data.forEach(t => {
-                    const row = tbody.insertRow();
-                    const timestamp = new Date(t.timestamp).toLocaleString();
-                    const detectionBadge = t.detection_method === 'ai'
-                        ? '<span class="detection-badge detection-ai">AI</span>'
-                        : '<span class="detection-badge detection-sig">SIG</span>';
-                    const threatName = t.signature || t.attack_type || 'Unknown';
-                    const confidence = t.confidence ? `${t.confidence}%` : '-';
-
-                    row.innerHTML = `
-                        <td style="font-family: monospace; font-size: 12px;">${timestamp}</td>
-                        <td><code style="font-size: 12px;">${t.source}</code></td>
-                        <td><code style="font-size: 12px;">${t.destination}</code></td>
-                        <td><strong>${threatName}</strong></td>
-                        <td>${detectionBadge}</td>
-                        <td>${confidence}</td>
-                        <td><span class="threat-badge ${t.action}">${t.action.toUpperCase()}</span></td>
-                    `;
-                });
+                previousThreatCount = data.length;
 
                 document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
             } catch(e) {
                 console.error('Error updating threats:', e);
+                toast.error('Failed to fetch threat data');
             }
         }
+
+        function applyFilters() {
+            const detectionFilter = document.getElementById('filter-detection').value;
+            const actionFilter = document.getElementById('filter-action').value;
+            const searchText = document.getElementById('threat-search').value.toLowerCase();
+
+            filteredData = currentThreatsData.filter(t => {
+                // Detection filter
+                if (detectionFilter === 'ai' && t.detection_method !== 'ai') return false;
+                if (detectionFilter === 'signature' && t.detection_method === 'ai') return false;
+
+                // Action filter
+                if (actionFilter && t.action !== actionFilter) return false;
+
+                // Search filter
+                if (searchText) {
+                    const threatName = (t.signature || t.attack_type || '').toLowerCase();
+                    const source = (t.source || '').toLowerCase();
+                    const destination = (t.destination || '').toLowerCase();
+                    if (!threatName.includes(searchText) && !source.includes(searchText) && !destination.includes(searchText)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
+
+            renderThreats();
+        }
+
+        function renderThreats() {
+            const tbody = document.getElementById('threats-body');
+
+            if (!filteredData || filteredData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="fas fa-check-circle"></i><p>No threats match filters</p></div></td></tr>';
+                return;
+            }
+
+            const sigThreats = filteredData.filter(t => t.detection_method !== 'ai').length;
+            const aiThreats = filteredData.filter(t => t.detection_method === 'ai').length;
+            const blockedThreats = filteredData.filter(t => t.action === 'blocked').length;
+
+            animateNumber('total-threats', filteredData.length);
+            animateNumber('sig-threats', sigThreats);
+            animateNumber('ai-threats', aiThreats);
+            animateNumber('blocked-threats', blockedThreats);
+
+            tbody.innerHTML = '';
+            filteredData.forEach(t => {
+                const row = tbody.insertRow();
+                const timestamp = new Date(t.timestamp).toLocaleString();
+                const detectionBadge = t.detection_method === 'ai'
+                    ? '<span class="detection-badge detection-ai">AI</span>'
+                    : '<span class="detection-badge detection-sig">SIG</span>';
+                const threatName = t.signature || t.attack_type || 'Unknown';
+                const confidence = t.confidence ? `${t.confidence}%` : '-';
+
+                row.innerHTML = `
+                    <td style="font-family: monospace; font-size: 12px;">${timestamp}</td>
+                    <td><code style="font-size: 12px;">${t.source}</code></td>
+                    <td><code style="font-size: 12px;">${t.destination}</code></td>
+                    <td><strong>${threatName}</strong></td>
+                    <td>${detectionBadge}</td>
+                    <td>${confidence}</td>
+                    <td><span class="threat-badge ${t.action}">${t.action.toUpperCase()}</span></td>
+                `;
+            });
+        }
+
+        function exportThreatsData() {
+            if (!filteredData || filteredData.length === 0) {
+                toast.warning('No threat data to export');
+                return;
+            }
+            exportToCSV(filteredData, 'threat_detections');
+        }
+
+        // Event listeners for filters
+        document.getElementById('filter-detection').addEventListener('change', applyFilters);
+        document.getElementById('filter-action').addEventListener('change', applyFilters);
+        document.getElementById('threat-search').addEventListener('input', applyFilters);
 
         updateThreats();
         setInterval(updateThreats, 3000);

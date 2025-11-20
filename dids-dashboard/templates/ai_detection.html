@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="{{ url_for('static', filename='js/interactive-utils.js') }}"></script>
     <style>
         * {
             margin: 0;
@@ -728,7 +729,19 @@
                         <i class="fas fa-history"></i>
                         Recent AI Detections
                     </h3>
-                    <span style="font-size: 12px; color: var(--text-light);" id="last-update">Just now</span>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <select id="confidence-filter" style="padding: 6px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px;">
+                            <option value="0">All Confidence Levels</option>
+                            <option value="90">90%+ High</option>
+                            <option value="75">75%+ Medium</option>
+                            <option value="50">50%+ Low</option>
+                        </select>
+                        <button onclick="exportDetections()" style="padding: 6px 12px; background: var(--primary); color: white;
+                                border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                        <span style="font-size: 12px; color: var(--text-light);" id="last-update">Just now</span>
+                    </div>
                 </div>
                 <div class="table-container">
                     <table>
@@ -887,13 +900,17 @@
             }
         });
 
+        // Global data for exports and filtering
+        let allDetections = [];
+        let filteredDetections = [];
+
         // Update AI stats
         async function updateStats() {
             try {
                 const data = await fetch('/api/ai-stats').then(r => r.json());
 
-                document.getElementById('total-detections').textContent = data.total_detections || 0;
-                document.getElementById('high-confidence').textContent = data.high_confidence_count || 0;
+                animateNumber('total-detections', data.total_detections || 0);
+                animateNumber('high-confidence', data.high_confidence_count || 0);
                 document.getElementById('avg-confidence').textContent = (data.average_confidence || 0) + '%';
 
                 // Update attack type chart
@@ -915,6 +932,7 @@
                 }
             } catch(e) {
                 console.error('Error updating stats:', e);
+                toast.error('Failed to update AI statistics');
             }
         }
 
@@ -974,44 +992,69 @@
         async function updateDetections() {
             try {
                 const data = await fetch('/api/ai-detections').then(r => r.json());
-                const tbody = document.getElementById('detections-body');
-
-                if (!data || data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="fas fa-check-circle"></i><p>No AI detections yet</p></div></td></tr>';
-                    return;
-                }
-
-                tbody.innerHTML = '';
-                data.slice().reverse().slice(0, 30).forEach(d => {
-                    const row = tbody.insertRow();
-                    const timestamp = new Date(d.timestamp).toLocaleString();
-                    row.innerHTML = `
-                        <td style="font-family: monospace; font-size: 12px;">${timestamp}</td>
-                        <td><code style="font-size: 12px;">${d.source}</code></td>
-                        <td><code style="font-size: 12px;">${d.destination}</code></td>
-                        <td><strong>${d.attack_type}</strong></td>
-                        <td><span class="confidence-badge">${d.confidence}%</span></td>
-                        <td><span class="severity-badge severity-${d.severity}">${d.severity}</span></td>
-                        <td><span class="action-badge action-${d.action}">${d.action}</span></td>
-                    `;
-                });
-
+                allDetections = data || [];
+                applyConfidenceFilter();
                 document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
             } catch(e) {
                 console.error('Error updating detections:', e);
+                toast.error('Failed to update AI detections');
             }
         }
+
+        function applyConfidenceFilter() {
+            const minConfidence = parseInt(document.getElementById('confidence-filter').value);
+            filteredDetections = allDetections.filter(d => d.confidence >= minConfidence);
+            renderDetections();
+        }
+
+        function renderDetections() {
+            const tbody = document.getElementById('detections-body');
+
+            if (!filteredDetections || filteredDetections.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="fas fa-check-circle"></i><p>No AI detections match filter</p></div></td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            filteredDetections.slice().reverse().slice(0, 30).forEach(d => {
+                const row = tbody.insertRow();
+                const timestamp = new Date(d.timestamp).toLocaleString();
+                row.innerHTML = `
+                    <td style="font-family: monospace; font-size: 12px;">${timestamp}</td>
+                    <td><code style="font-size: 12px;">${d.source}</code></td>
+                    <td><code style="font-size: 12px;">${d.destination}</code></td>
+                    <td><strong>${d.attack_type}</strong></td>
+                    <td><span class="confidence-badge">${d.confidence}%</span></td>
+                    <td><span class="severity-badge severity-${d.severity}">${d.severity}</span></td>
+                    <td><span class="action-badge action-${d.action}">${d.action}</span></td>
+                `;
+            });
+        }
+
+        function exportDetections() {
+            if (!filteredDetections || filteredDetections.length === 0) {
+                toast.warning('No AI detections to export');
+                return;
+            }
+            exportToCSV(filteredDetections, 'ai_detections');
+        }
+
+        // Add event listener for confidence filter
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('confidence-filter').addEventListener('change', applyConfidenceFilter);
+        });
 
         // Update threshold
         async function updateThreshold() {
             const threshold = parseFloat(document.getElementById('threshold-input').value);
 
             if (threshold < 0 || threshold > 1) {
-                alert('Threshold must be between 0.0 and 1.0');
+                toast.warning('Threshold must be between 0.0 and 1.0');
                 return;
             }
 
             try {
+                loading.show('Updating confidence threshold...');
                 const response = await fetch('/api/ai-threshold', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1019,16 +1062,19 @@
                 });
 
                 const data = await response.json();
+                loading.hide();
 
                 if (data.success) {
                     document.getElementById('current-threshold').textContent = (threshold * 100).toFixed(0) + '%';
-                    alert('Threshold updated successfully!');
+                    toast.success('Confidence threshold updated successfully!');
+                    pulseElement('current-threshold');
                 } else {
-                    alert('Failed to update threshold: ' + (data.error || 'Unknown error'));
+                    toast.error('Failed to update threshold: ' + (data.error || 'Unknown error'));
                 }
             } catch(e) {
                 console.error('Error updating threshold:', e);
-                alert('Failed to update threshold');
+                loading.hide();
+                toast.error('Failed to update threshold');
             }
         }
 
