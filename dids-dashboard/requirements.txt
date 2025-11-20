@@ -5,6 +5,9 @@ flask-login
 numpy
 pandas
 scikit-learn
-tensorflow
+tensorflow>=2.12.0
 scapy
 python-dotenv
+netifaces
+pyyaml
+gym>=0.26.0

@@ -3,6 +3,7 @@ from .packet_capture import PacketCaptureService
 from .threat_detection import ThreatDetectionService
 from .ai_detection import AIDetectionService
 from .flow_tracker import FlowTracker
+from .rl_detection import RLDetectionService
 
 __all__ = [
     "UserService",
@@ -10,4 +11,5 @@ __all__ = [
     "ThreatDetectionService",
     "AIDetectionService",
     "FlowTracker",
+    "RLDetectionService",
 ]
