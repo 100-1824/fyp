@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="{{ url_for('static', filename='js/interactive-utils.js') }}"></script>
     <style>
         * {
             margin: 0;
@@ -664,7 +665,15 @@
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">Live Network Traffic</h3>
-                        <span style="font-size: 12px; color: var(--text-light);" id="last-update">Just now</span>
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            <input type="text" id="traffic-search" placeholder="Search traffic..."
+                                   style="padding: 6px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; width: 200px;">
+                            <button onclick="exportTrafficData()" style="padding: 6px 12px; background: var(--primary); color: white;
+                                    border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;">
+                                <i class="fas fa-download"></i> Export
+                            </button>
+                            <span style="font-size: 12px; color: var(--text-light);" id="last-update">Just now</span>
+                        </div>
                     </div>
                     <div class="table-container">
                         <table>
@@ -768,10 +777,14 @@
             }
         });
 
+        // Global traffic data for export
+        let currentTrafficData = [];
+
         // Update functions
         async function updateTraffic() {
             try {
                 const data = await fetch('/api/traffic').then(r => r.json());
+                currentTrafficData = data; // Store for export
                 const tbody = document.getElementById('traffic-body');
                 tbody.innerHTML = '';
 
@@ -794,8 +807,33 @@
                 });
 
                 document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
-            } catch(e) { console.error(e); }
+            } catch(e) {
+                console.error(e);
+                toast.error('Failed to update traffic data');
+            }
         }
+
+        // Export traffic data
+        function exportTrafficData() {
+            if (!currentTrafficData || currentTrafficData.length === 0) {
+                toast.warning('No traffic data to export');
+                return;
+            }
+            exportToCSV(currentTrafficData, 'network_traffic');
+        }
+
+        // Filter traffic table
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('traffic-search');
+            if (searchInput) {
+                searchInput.addEventListener('input', function(e) {
+                    const count = filterTable('traffic-body', e.target.value);
+                    if (count === 0) {
+                        toast.info('No matches found');
+                    }
+                });
+            }
+        });
 
         async function updateStats() {
             try {
@@ -820,11 +858,21 @@
             } catch(e) { console.error(e); }
         }
 
+        let previousThreatCount = 0;
+
         async function updateThreats() {
             try {
                 const data = await fetch('/api/combined-threats').then(r => r.json());
                 const list = document.getElementById('threat-list');
                 document.getElementById('threat-count').textContent = data.length;
+
+                // Show notification if new threats detected
+                if (data.length > previousThreatCount) {
+                    const newThreats = data.length - previousThreatCount;
+                    toast.warning(`${newThreats} new threat${newThreats > 1 ? 's' : ''} detected!`, 5000);
+                    pulseElement('threat-count');
+                }
+                previousThreatCount = data.length;
 
                 if (!data.length) {
                     list.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle"></i><p>No threats</p></div>';
@@ -852,14 +900,25 @@
                     `;
                     list.appendChild(div);
                 });
-            } catch(e) { console.error(e); }
+            } catch(e) {
+                console.error(e);
+                toast.error('Failed to update threat list');
+            }
         }
 
         // Toggle capture
         document.getElementById('capture-btn').addEventListener('click', async function() {
-            const res = await fetch('/api/capture/toggle', { method: 'POST' }).then(r => r.json());
-            this.className = `capture-btn ${res.active ? 'active' : 'inactive'}`;
-            this.innerHTML = `<i class="fas fa-${res.active ? 'circle' : 'pause'}"></i><span>${res.active ? 'Live' : 'Paused'}</span>`;
+            try {
+                loading.show('Toggling capture...');
+                const res = await fetch('/api/capture/toggle', { method: 'POST' }).then(r => r.json());
+                this.className = `capture-btn ${res.active ? 'active' : 'inactive'}`;
+                this.innerHTML = `<i class="fas fa-${res.active ? 'circle' : 'pause'}"></i><span>${res.active ? 'Live' : 'Paused'}</span>`;
+                loading.hide();
+                toast.success(res.active ? 'Packet capture started' : 'Packet capture paused');
+            } catch(e) {
+                loading.hide();
+                toast.error('Failed to toggle packet capture');
+            }
         });
 
         function formatBytes(b) {

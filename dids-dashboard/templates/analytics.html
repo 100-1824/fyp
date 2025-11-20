@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="{{ url_for('static', filename='js/interactive-utils.js') }}"></script>
     <style>
         * {
             margin: 0;
@@ -461,6 +462,10 @@
                     Network Analytics
                 </h1>
             </div>
+            <button onclick="exportAllAnalytics()" style="padding: 10px 20px; background: var(--primary); color: white;
+                    border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-download"></i> Export All Data
+            </button>
         </div>
 
         <div class="dashboard">
@@ -551,6 +556,10 @@
                             <i class="fas fa-server"></i>
                             Top Talkers
                         </h3>
+                        <button onclick="exportTopTalkers()" style="padding: 6px 12px; background: var(--primary); color: white;
+                                border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;">
+                            <i class="fas fa-download"></i> Export
+                        </button>
                     </div>
                     <div class="top-talkers-list" id="top-talkers">
                         <div class="empty-state">
@@ -596,6 +605,14 @@
                 document.getElementById('user-avatar').textContent = d.name[0].toUpperCase();
             }
         });
+
+        // Global data for exports
+        let analyticsData = {
+            stats: {},
+            aiStats: {},
+            threats: [],
+            topTalkers: []
+        };
 
         const colors = {
             TCP: '#3b82f6', UDP: '#f59e0b', HTTP: '#10b981',
@@ -660,11 +677,16 @@
                 const aiStats = await fetch('/api/ai-stats').then(r => r.json());
                 const threats = await fetch('/api/combined-threats').then(r => r.json());
 
-                document.getElementById('total-packets').textContent = stats.total_packets.toLocaleString();
+                // Store for exports
+                analyticsData.stats = stats;
+                analyticsData.aiStats = aiStats;
+                analyticsData.threats = threats;
+
+                animateNumber('total-packets', stats.total_packets);
                 document.getElementById('pps').textContent = stats.pps || 0;
 
                 const totalThreats = (stats.threats_blocked || 0) + (aiStats.total_detections || 0);
-                document.getElementById('total-threats').textContent = totalThreats;
+                animateNumber('total-threats', totalThreats);
 
                 const detectionRate = stats.total_packets > 0 ? ((totalThreats / stats.total_packets) * 100).toFixed(2) : 0;
                 document.getElementById('detection-rate').textContent = detectionRate + '%';
@@ -687,6 +709,8 @@
 
                 const talkersList = document.getElementById('top-talkers');
                 const talkers = Object.entries(stats.top_talkers).slice(0, 10);
+                analyticsData.topTalkers = talkers.map(([ip, count]) => ({ ip, packet_count: count }));
+
                 if (talkers.length > 0) {
                     talkersList.innerHTML = '';
                     talkers.forEach(([ip, count]) => {
@@ -708,7 +732,44 @@
                 detectionChart.update('none');
             } catch(e) {
                 console.error('Error updating analytics:', e);
+                toast.error('Failed to update analytics data');
             }
+        }
+
+        function exportTopTalkers() {
+            if (!analyticsData.topTalkers || analyticsData.topTalkers.length === 0) {
+                toast.warning('No top talkers data to export');
+                return;
+            }
+            exportToCSV(analyticsData.topTalkers, 'top_talkers');
+        }
+
+        function exportAllAnalytics() {
+            if (!analyticsData.stats || !analyticsData.stats.total_packets) {
+                toast.warning('No analytics data available');
+                return;
+            }
+
+            loading.show('Preparing analytics export...');
+
+            // Prepare comprehensive analytics export
+            const exportData = [{
+                timestamp: new Date().toISOString(),
+                total_packets: analyticsData.stats.total_packets,
+                packets_per_second: analyticsData.stats.pps,
+                total_threats: (analyticsData.stats.threats_blocked || 0) + (analyticsData.aiStats.total_detections || 0),
+                signature_threats: analyticsData.threats.filter(t => t.detection_method !== 'ai').length,
+                ai_threats: analyticsData.threats.filter(t => t.detection_method === 'ai').length,
+                detection_rate: (analyticsData.stats.total_packets > 0 ?
+                    ((((analyticsData.stats.threats_blocked || 0) + (analyticsData.aiStats.total_detections || 0)) / analyticsData.stats.total_packets) * 100).toFixed(2) : 0) + '%',
+                protocols: JSON.stringify(analyticsData.stats.protocols),
+                attack_types: JSON.stringify(analyticsData.aiStats.by_attack_type || {})
+            }];
+
+            setTimeout(() => {
+                exportToCSV(exportData, 'comprehensive_analytics');
+                loading.hide();
+            }, 500);
         }
 
         updateAnalytics();
