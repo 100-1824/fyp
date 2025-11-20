@@ -366,6 +366,64 @@
             opacity: 0.3;
         }
 
+        .chart-box {
+            height: 300px;
+            position: relative;
+        }
+
+        .ip-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            background: var(--bg-light);
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+
+        .ip-item code {
+            font-size: 12px;
+            color: var(--text-dark);
+            font-weight: 600;
+        }
+
+        .ip-item-count {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--danger);
+        }
+
+        .threat-detail-item {
+            padding: 12px;
+            background: var(--bg-light);
+            border-radius: 6px;
+            border-left: 3px solid var(--danger);
+            margin-bottom: 8px;
+        }
+
+        .threat-detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .threat-detail-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .threat-detail-time {
+            font-size: 11px;
+            color: var(--text-light);
+        }
+
+        .threat-detail-body {
+            font-size: 12px;
+            color: var(--text-light);
+        }
+
         @media (max-width: 1200px) {
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
@@ -532,6 +590,111 @@
                 </div>
             </div>
 
+            <!-- Visualizations Row 1 -->
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <!-- Threat Timeline -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-chart-line"></i>
+                            Threat Detection Timeline (Last Hour)
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-box">
+                            <canvas id="threatTimelineChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detection Methods -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-chart-pie"></i>
+                            Detection Methods
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-box">
+                            <canvas id="detectionMethodChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Visualizations Row 2 -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <!-- Top Source IPs -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-network-wired"></i>
+                            Top Source IPs
+                        </h3>
+                    </div>
+                    <div class="card-body" style="max-height: 350px; overflow-y: auto;">
+                        <div id="top-sources">
+                            <div class="empty-state" style="padding: 20px;">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <p style="font-size: 12px;">Loading...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Destinations -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-bullseye"></i>
+                            Top Destinations
+                        </h3>
+                    </div>
+                    <div class="card-body" style="max-height: 350px; overflow-y: auto;">
+                        <div id="top-destinations">
+                            <div class="empty-state" style="padding: 20px;">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <p style="font-size: 12px;">Loading...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Critical Threats -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-exclamation-circle"></i>
+                            Recent Alerts
+                        </h3>
+                    </div>
+                    <div class="card-body" style="max-height: 350px; overflow-y: auto;">
+                        <div id="recent-alerts">
+                            <div class="empty-state" style="padding: 20px;">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <p style="font-size: 12px;">Loading...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Threat Type Distribution -->
+            <div class="card" style="margin-bottom: 20px;">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-chart-bar"></i>
+                        Threat Type Distribution
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="chart-box">
+                        <canvas id="threatTypeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header">
                     <h3 class="card-title">
@@ -607,6 +770,93 @@
             }
         });
 
+        // Initialize charts
+        const threatTimelineCtx = document.getElementById('threatTimelineChart').getContext('2d');
+        const threatTimelineChart = new Chart(threatTimelineCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Threats',
+                    data: [],
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { font: { family: 'Inter' }, precision: 0 }
+                    },
+                    x: {
+                        ticks: { font: { family: 'Inter', size: 10 } }
+                    }
+                }
+            }
+        });
+
+        const detectionMethodCtx = document.getElementById('detectionMethodChart').getContext('2d');
+        const detectionMethodChart = new Chart(detectionMethodCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['AI Detection', 'Signature Detection'],
+                datasets: [{
+                    data: [0, 0],
+                    backgroundColor: ['#667eea', '#f59e0b'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            font: { family: 'Inter', size: 11 },
+                            padding: 12,
+                            usePointStyle: true
+                        }
+                    }
+                },
+                cutout: '65%'
+            }
+        });
+
+        const threatTypeCtx = document.getElementById('threatTypeChart').getContext('2d');
+        const threatTypeChart = new Chart(threatTypeCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Threats',
+                    data: [],
+                    backgroundColor: '#ef4444'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { font: { family: 'Inter' }, precision: 0 }
+                    },
+                    x: {
+                        ticks: { font: { family: 'Inter' } }
+                    }
+                }
+            }
+        });
+
         let currentThreatsData = [];
         let previousThreatCount = 0;
         let filteredData = [];
@@ -619,6 +869,14 @@
 
                 // Apply filters
                 applyFilters();
+
+                // Update visualizations
+                updateThreatTimeline(data);
+                updateDetectionMethods(data);
+                updateThreatTypes(data);
+                updateTopSources(data);
+                updateTopDestinations(data);
+                updateRecentAlerts(data);
 
                 // Show notification for new threats
                 if (data.length > previousThreatCount) {
@@ -633,6 +891,155 @@
                 console.error('Error updating threats:', e);
                 toast.error('Failed to fetch threat data');
             }
+        }
+
+        function updateThreatTimeline(threats) {
+            if (!threats || threats.length === 0) return;
+
+            const now = new Date();
+            const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+            const minuteBuckets = {};
+
+            for (let i = 0; i < 60; i++) {
+                const time = new Date(now.getTime() - i * 60 * 1000);
+                const label = time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                minuteBuckets[label] = 0;
+            }
+
+            threats.forEach(t => {
+                const threatTime = new Date(t.timestamp);
+                if (threatTime >= oneHourAgo) {
+                    const label = threatTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                    if (minuteBuckets.hasOwnProperty(label)) {
+                        minuteBuckets[label]++;
+                    }
+                }
+            });
+
+            const labels = Object.keys(minuteBuckets).reverse().filter((_, i) => i % 5 === 0);
+            const values = labels.map(l => minuteBuckets[l]);
+
+            threatTimelineChart.data.labels = labels;
+            threatTimelineChart.data.datasets[0].data = values;
+            threatTimelineChart.update('none');
+        }
+
+        function updateDetectionMethods(threats) {
+            if (!threats || threats.length === 0) return;
+
+            const aiCount = threats.filter(t => t.detection_method === 'ai').length;
+            const sigCount = threats.length - aiCount;
+
+            detectionMethodChart.data.datasets[0].data = [aiCount, sigCount];
+            detectionMethodChart.update('none');
+        }
+
+        function updateThreatTypes(threats) {
+            if (!threats || threats.length === 0) return;
+
+            const typeCounts = {};
+            threats.forEach(t => {
+                const type = t.signature || t.attack_type || 'Unknown';
+                typeCounts[type] = (typeCounts[type] || 0) + 1;
+            });
+
+            const sorted = Object.entries(typeCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10);
+
+            threatTypeChart.data.labels = sorted.map(([type]) => type.length > 30 ? type.substring(0, 30) + '...' : type);
+            threatTypeChart.data.datasets[0].data = sorted.map(([, count]) => count);
+            threatTypeChart.update('none');
+        }
+
+        function updateTopSources(threats) {
+            if (!threats || threats.length === 0) {
+                document.getElementById('top-sources').innerHTML =
+                    '<div class="empty-state" style="padding: 20px;"><i class="fas fa-info-circle"></i><p style="font-size: 12px;">No data</p></div>';
+                return;
+            }
+
+            const sourceCounts = {};
+            threats.forEach(t => {
+                if (t.source) {
+                    sourceCounts[t.source] = (sourceCounts[t.source] || 0) + 1;
+                }
+            });
+
+            const sorted = Object.entries(sourceCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10);
+
+            const html = sorted.map(([ip, count]) => `
+                <div class="ip-item">
+                    <code>${ip}</code>
+                    <span class="ip-item-count">${count}</span>
+                </div>
+            `).join('');
+
+            document.getElementById('top-sources').innerHTML = html ||
+                '<div class="empty-state" style="padding: 20px;"><i class="fas fa-info-circle"></i><p style="font-size: 12px;">No data</p></div>';
+        }
+
+        function updateTopDestinations(threats) {
+            if (!threats || threats.length === 0) {
+                document.getElementById('top-destinations').innerHTML =
+                    '<div class="empty-state" style="padding: 20px;"><i class="fas fa-info-circle"></i><p style="font-size: 12px;">No data</p></div>';
+                return;
+            }
+
+            const destCounts = {};
+            threats.forEach(t => {
+                if (t.destination) {
+                    destCounts[t.destination] = (destCounts[t.destination] || 0) + 1;
+                }
+            });
+
+            const sorted = Object.entries(destCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10);
+
+            const html = sorted.map(([ip, count]) => `
+                <div class="ip-item">
+                    <code>${ip}</code>
+                    <span class="ip-item-count">${count}</span>
+                </div>
+            `).join('');
+
+            document.getElementById('top-destinations').innerHTML = html ||
+                '<div class="empty-state" style="padding: 20px;"><i class="fas fa-info-circle"></i><p style="font-size: 12px;">No data</p></div>';
+        }
+
+        function updateRecentAlerts(threats) {
+            if (!threats || threats.length === 0) {
+                document.getElementById('recent-alerts').innerHTML =
+                    '<div class="empty-state" style="padding: 20px;"><i class="fas fa-info-circle"></i><p style="font-size: 12px;">No alerts</p></div>';
+                return;
+            }
+
+            const recent = threats
+                .filter(t => t.action === 'blocked' || t.action === 'alert')
+                .slice(-10)
+                .reverse();
+
+            const html = recent.map(t => {
+                const time = new Date(t.timestamp).toLocaleTimeString();
+                const threatName = t.signature || t.attack_type || 'Unknown Threat';
+                return `
+                    <div class="threat-detail-item">
+                        <div class="threat-detail-header">
+                            <div class="threat-detail-title">${threatName}</div>
+                            <div class="threat-detail-time">${time}</div>
+                        </div>
+                        <div class="threat-detail-body">
+                            ${t.source} → ${t.destination}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('recent-alerts').innerHTML = html ||
+                '<div class="empty-state" style="padding: 20px;"><i class="fas fa-info-circle"></i><p style="font-size: 12px;">No alerts</p></div>';
         }
 
         function applyFilters() {
