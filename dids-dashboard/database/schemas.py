@@ -624,6 +624,123 @@ SYSTEM_LOGS_SCHEMA = {
     ]
 }
 
+# ==================== RULES COLLECTION (Suricata/Snort) ====================
+RULES_SCHEMA = {
+    "validator": {
+        "$jsonSchema": {
+            "bsonType": "object",
+            "required": ["sid", "action", "protocol", "msg"],
+            "properties": {
+                "sid": {
+                    "bsonType": "string",
+                    "description": "Unique Signature ID"
+                },
+                "action": {
+                    "enum": ["alert", "log", "pass", "drop", "reject", "sdrop"],
+                    "description": "Rule action"
+                },
+                "protocol": {
+                    "enum": ["tcp", "udp", "icmp", "ip", "http", "ftp", "tls", "smb", "dns", "ssh"],
+                    "description": "Protocol to match"
+                },
+                "src_ip": {
+                    "bsonType": "string",
+                    "description": "Source IP specification"
+                },
+                "src_port": {
+                    "bsonType": "string",
+                    "description": "Source port specification"
+                },
+                "direction": {
+                    "enum": ["->", "<>", "<-"],
+                    "description": "Traffic direction"
+                },
+                "dst_ip": {
+                    "bsonType": "string",
+                    "description": "Destination IP specification"
+                },
+                "dst_port": {
+                    "bsonType": "string",
+                    "description": "Destination port specification"
+                },
+                "msg": {
+                    "bsonType": "string",
+                    "description": "Rule message/description"
+                },
+                "raw_rule": {
+                    "bsonType": "string",
+                    "description": "Original raw rule text"
+                },
+                "severity": {
+                    "enum": ["critical", "high", "medium", "low"],
+                    "description": "Rule severity level"
+                },
+                "priority": {
+                    "bsonType": "int",
+                    "minimum": 1,
+                    "maximum": 4,
+                    "description": "Rule priority (1=highest, 4=lowest)"
+                },
+                "classtype": {
+                    "bsonType": "string",
+                    "description": "Classification type (e.g., trojan-activity, attempted-admin)"
+                },
+                "reference": {
+                    "bsonType": "string",
+                    "description": "External reference (CVE, URL, etc.)"
+                },
+                "rev": {
+                    "bsonType": "string",
+                    "description": "Rule revision number"
+                },
+                "enabled": {
+                    "bsonType": "bool",
+                    "description": "Whether rule is active"
+                },
+                "hit_count": {
+                    "bsonType": "int",
+                    "minimum": 0,
+                    "description": "Number of times rule has matched"
+                },
+                "last_hit": {
+                    "bsonType": "date",
+                    "description": "Last time rule matched a packet"
+                },
+                "created_at": {
+                    "bsonType": "date",
+                    "description": "Rule creation timestamp"
+                },
+                "last_modified": {
+                    "bsonType": "date",
+                    "description": "Last modification timestamp"
+                },
+                "source_file": {
+                    "bsonType": "string",
+                    "description": "Source file path if loaded from file"
+                },
+                "line_number": {
+                    "bsonType": "int",
+                    "description": "Line number in source file"
+                },
+                "options": {
+                    "bsonType": "object",
+                    "description": "Parsed rule options (content, pcre, flags, etc.)"
+                }
+            }
+        }
+    },
+    "indexes": [
+        {"key": [("sid", 1)], "name": "sid_unique", "unique": True},
+        {"key": [("enabled", 1)], "name": "enabled"},
+        {"key": [("severity", 1)], "name": "severity"},
+        {"key": [("protocol", 1)], "name": "protocol"},
+        {"key": [("action", 1)], "name": "action"},
+        {"key": [("hit_count", -1)], "name": "hit_count_desc"},
+        {"key": [("last_hit", -1)], "name": "last_hit_desc"},
+        {"key": [("classtype", 1)], "name": "classtype"}
+    ]
+}
+
 
 # ==================== DATABASE INITIALIZATION ====================
 
@@ -648,7 +765,8 @@ def init_database(db, drop_existing: bool = False) -> Dict[str, bool]:
         'alerts': ALERTS_SCHEMA,
         'users': USERS_SCHEMA,
         'statistics': STATISTICS_SCHEMA,
-        'system_logs': SYSTEM_LOGS_SCHEMA
+        'system_logs': SYSTEM_LOGS_SCHEMA,
+        'rules': RULES_SCHEMA
     }
 
     for collection_name, schema in schemas.items():
@@ -702,7 +820,8 @@ def create_indexes(db) -> Dict[str, List[str]]:
         'alerts': ALERTS_SCHEMA,
         'users': USERS_SCHEMA,
         'statistics': STATISTICS_SCHEMA,
-        'system_logs': SYSTEM_LOGS_SCHEMA
+        'system_logs': SYSTEM_LOGS_SCHEMA,
+        'rules': RULES_SCHEMA
     }
 
     for collection_name, schema in schemas.items():
@@ -743,7 +862,7 @@ def get_collection_stats(db) -> Dict[str, Any]:
     stats = {}
 
     collections = ['packets', 'threats', 'detections', 'flows', 'alerts',
-                   'users', 'statistics', 'system_logs']
+                   'users', 'statistics', 'system_logs', 'rules']
 
     for collection_name in collections:
         try:

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from collections import defaultdict
 import logging
 import random
@@ -9,10 +9,11 @@ logger = logging.getLogger(__name__)
 
 class ThreatDetectionService:
     """Service for detecting and managing security threats"""
-    
-    def __init__(self, config):
+
+    def __init__(self, config, rule_engine=None):
         self.config = config
         self.signature_detections = []
+        self.rule_engine = rule_engine  # Suricata/Snort rule engine
         
         # Track scanning activity per IP
         self.scan_tracker = defaultdict(lambda: {'ports': set(), 'first_seen': None, 'count': 0})
@@ -239,44 +240,73 @@ class ThreatDetectionService:
     def check_payload_signatures(self, payload: bytes) -> List[str]:
         """
         Check payload against known attack patterns.
-        
+
         Args:
             payload: Packet payload bytes
-            
+
         Returns:
             List of matching signature names
         """
         matches = []
-        
+
         if not payload or len(payload) == 0:
             return matches
-        
+
         # SQL Injection patterns
         sql_patterns = self.threat_signatures.get('ET WEB SQL Injection Attempt', {}).get('patterns', [])
         for pattern in sql_patterns:
             if pattern in payload:
                 matches.append('ET WEB SQL Injection Attempt')
                 break
-        
+
         # XSS patterns
         xss_patterns = self.threat_signatures.get('ET WEB XSS Attack', {}).get('patterns', [])
         for pattern in xss_patterns:
             if pattern in payload:
                 matches.append('ET WEB XSS Attack')
                 break
-        
+
         # Directory traversal patterns
         traversal_patterns = self.threat_signatures.get('ET WEB Directory Traversal', {}).get('patterns', [])
         for pattern in traversal_patterns:
             if pattern in payload:
                 matches.append('ET WEB Directory Traversal')
                 break
-        
+
         # Malware C2 pattern
         if b'\x90\x90\x90' in payload:
             matches.append('ET MALWARE C2 Communication')
-        
+
         return matches
+
+    def check_suricata_rules(self, packet_info: Dict[str, Any], payload: Optional[bytes] = None) -> List[Dict[str, Any]]:
+        """
+        Check packet against Suricata/Snort rules using rule engine.
+
+        Args:
+            packet_info: Dictionary containing packet information
+            payload: Raw packet payload bytes (optional)
+
+        Returns:
+            List of rule matches
+        """
+        if not self.rule_engine:
+            return []
+
+        try:
+            # Match packet against all active rules
+            matches = self.rule_engine.match_packet(packet_info, payload)
+
+            # Log matches
+            for match in matches:
+                logger.info(f"Suricata/Snort rule match: {match['rule_msg']} "
+                          f"(SID: {match['rule_sid']}, Action: {match['action']}, "
+                          f"Severity: {match['severity']})")
+
+            return matches
+        except Exception as e:
+            logger.error(f"Error checking Suricata rules: {e}")
+            return []
     
     def log_threat(self, signature: str, src: str, dst: str, 
                    additional_info: Dict[str, Any] = None) -> Dict[str, Any]:
