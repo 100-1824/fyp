@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traffic-capture
+  labels:
+    app: traffic-capture
+    component: capture
+spec:
+  replicas: 1  # Typically one for packet capture
+  selector:
+    matchLabels:
+      app: traffic-capture
+  template:
+    metadata:
+      labels:
+        app: traffic-capture
+        component: capture
+    spec:
+      hostNetwork: true  # Required for packet capture
+      containers:
+      - name: traffic-capture
+        image: sherlock1824/dids-traffic-capture:latest
+        ports:
+        - containerPort: 5001
+          name: http
+        env:
+        - name: FLASK_ENV
+          value: "production"
+        - name: LOG_LEVEL
+          value: "INFO"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        securityContext:
+          privileged: true  # Required for packet capture
+          capabilities:
+            add:
+              - NET_ADMIN
+              - NET_RAW
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: traffic-capture
+  labels:
+    app: traffic-capture
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5001
+    targetPort: 5001
+    protocol: TCP
+    name: http
+  selector:
+    app: traffic-capture

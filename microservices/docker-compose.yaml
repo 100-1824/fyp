@@ -1,0 +1,122 @@
+version: '3.8'
+
+services:
+  # MongoDB
+  mongodb:
+    image: mongo:6.0
+    container_name: dids-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: dids
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - dids-network
+
+  # Redis (for caching and message queue)
+  redis:
+    image: redis:7-alpine
+    container_name: dids-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - dids-network
+
+  # Traffic Capture Service
+  traffic-capture:
+    build: ./traffic-capture
+    container_name: dids-traffic-capture
+    ports:
+      - "5001:5001"
+    environment:
+      - FLASK_ENV=development
+      - LOG_LEVEL=INFO
+    network_mode: "host"  # Required for packet capture
+    privileged: true      # Required for packet capture
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    depends_on:
+      - mongodb
+      - redis
+
+  # Signature Detection Service
+  signature-detection:
+    build: ./signature-detection
+    container_name: dids-signature-detection
+    ports:
+      - "5002:5002"
+    environment:
+      - FLASK_ENV=development
+      - LOG_LEVEL=INFO
+      - MONGO_URI=mongodb://admin:password123@mongodb:27017/dids?authSource=admin
+    networks:
+      - dids-network
+    depends_on:
+      - mongodb
+
+  # AI Detection Service
+  ai-detection:
+    build: ./ai-detection
+    container_name: dids-ai-detection
+    ports:
+      - "5003:5003"
+    environment:
+      - FLASK_ENV=development
+      - LOG_LEVEL=INFO
+      - MONGO_URI=mongodb://admin:password123@mongodb:27017/dids?authSource=admin
+    volumes:
+      - ../dids-dashboard/model:/app/model:ro
+    networks:
+      - dids-network
+    depends_on:
+      - mongodb
+
+  # RL Detection Service
+  rl-detection:
+    build: ./rl-detection
+    container_name: dids-rl-detection
+    ports:
+      - "5004:5004"
+    environment:
+      - FLASK_ENV=development
+      - LOG_LEVEL=INFO
+      - MONGO_URI=mongodb://admin:password123@mongodb:27017/dids?authSource=admin
+    volumes:
+      - ../rl-module/trained_models:/app/model:ro
+    networks:
+      - dids-network
+    depends_on:
+      - mongodb
+
+  # API Gateway
+  api-gateway:
+    build: ./api-gateway
+    container_name: dids-api-gateway
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - LOG_LEVEL=INFO
+      - MONGO_URI=mongodb://admin:password123@mongodb:27017/dids?authSource=admin
+      - TRAFFIC_CAPTURE_URL=http://traffic-capture:5001
+      - SIGNATURE_DETECTION_URL=http://signature-detection:5002
+      - AI_DETECTION_URL=http://ai-detection:5003
+      - RL_DETECTION_URL=http://rl-detection:5004
+    networks:
+      - dids-network
+    depends_on:
+      - traffic-capture
+      - signature-detection
+      - ai-detection
+      - rl-detection
+
+networks:
+  dids-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:

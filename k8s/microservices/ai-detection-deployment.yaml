@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-detection
+  labels:
+    app: ai-detection
+    component: detection
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ai-detection
+  template:
+    metadata:
+      labels:
+        app: ai-detection
+        component: detection
+    spec:
+      containers:
+      - name: ai-detection
+        image: sherlock1824/dids-ai-detection:latest
+        ports:
+        - containerPort: 5003
+          name: http
+        env:
+        - name: FLASK_ENV
+          value: "production"
+        - name: LOG_LEVEL
+          value: "INFO"
+        volumeMounts:
+        - name: ai-model
+          mountPath: /app/model
+          readOnly: true
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5003
+          initialDelaySeconds: 60
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5003
+          initialDelaySeconds: 45
+          periodSeconds: 10
+      volumes:
+      - name: ai-model
+        persistentVolumeClaim:
+          claimName: ai-model-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-detection
+  labels:
+    app: ai-detection
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5003
+    targetPort: 5003
+    protocol: TCP
+    name: http
+  selector:
+    app: ai-detection
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ai-model-pvc
+spec:
+  accessModes:
+    - ReadOnlyMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: azure-disk
