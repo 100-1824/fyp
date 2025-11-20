@@ -1,0 +1,128 @@
+# AI Model Training Configuration
+
+# Data Configuration
+data:
+  # Supported datasets: CICIDS2017, CICIDS2018, NSL-KDD, UNSW-NB15, custom
+  dataset_name: "CICIDS2017"
+  raw_data_path: "ml-training/data/raw"
+  processed_data_path: "ml-training/data/processed"
+  preprocessed_data_path: "ml-training/data/preprocessed"
+
+  # Data split ratios
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+
+  # Sampling configuration
+  use_sampling: true
+  sampling_strategy: "SMOTE"  # SMOTE, RandomUnderSampler, or hybrid
+  max_samples_per_class: 50000
+
+  # Feature selection
+  use_feature_selection: true
+  feature_selection_method: "variance"  # variance, correlation, or importance
+  n_features: 77  # Number of features to select
+
+# Model Configuration
+model:
+  architecture: "deep_neural_network"  # deep_neural_network, random_forest, xgboost
+
+  # Neural Network Architecture
+  layers:
+    - units: 128
+      activation: "relu"
+      dropout: 0.3
+    - units: 64
+      activation: "relu"
+      dropout: 0.3
+    - units: 32
+      activation: "relu"
+      dropout: 0.2
+    - units: 16
+      activation: "relu"
+
+  # Output layer (configured automatically based on classes)
+  output_activation: "softmax"
+
+  # Compilation parameters
+  optimizer: "adam"
+  learning_rate: 0.001
+  loss: "sparse_categorical_crossentropy"
+  metrics: ["accuracy", "precision", "recall"]
+
+# Training Configuration
+training:
+  epochs: 50
+  batch_size: 256
+  validation_split: 0.15
+  early_stopping:
+    enabled: true
+    patience: 10
+    monitor: "val_loss"
+    restore_best_weights: true
+
+  # Learning rate scheduling
+  lr_scheduler:
+    enabled: true
+    factor: 0.5
+    patience: 5
+    min_lr: 0.00001
+
+  # Checkpointing
+  checkpoint:
+    enabled: true
+    save_best_only: true
+    monitor: "val_accuracy"
+
+  # Class weights (for imbalanced data)
+  use_class_weights: true
+
+  # Data augmentation
+  augmentation:
+    enabled: false  # For network traffic, augmentation is limited
+
+# Evaluation Configuration
+evaluation:
+  generate_confusion_matrix: true
+  generate_roc_curves: true
+  generate_classification_report: true
+  save_predictions: true
+
+  # Metrics to compute
+  metrics:
+    - accuracy
+    - precision
+    - recall
+    - f1_score
+    - roc_auc
+
+# Output Configuration
+output:
+  model_name: "dids_model"
+  model_format: "keras"  # keras, h5, savedmodel
+  save_path: "ml-training/models"
+  deployment_path: "dids-dashboard/model"
+
+  # Artifacts to save
+  save_scaler: true
+  save_label_encoder: true
+  save_feature_names: true
+  save_metrics: true
+  save_config: true
+  save_visualizations: true
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  log_file: "ml-training/training.log"
+  tensorboard:
+    enabled: true
+    log_dir: "ml-training/logs"
+
+# Advanced Options
+advanced:
+  random_seed: 42
+  use_gpu: true
+  mixed_precision: false
+  distributed_training: false
+  num_workers: 4
