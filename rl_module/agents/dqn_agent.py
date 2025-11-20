@@ -4,16 +4,17 @@ Deep Q-Network (DQN) Agent for IDS
 Implements DQN with experience replay and target network
 """
 
+import logging
+import pickle
+import random
+from collections import deque
+from pathlib import Path
+from typing import List, Optional, Tuple
+
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers, models, optimizers
-from collections import deque
-import random
-import logging
-from typing import List, Tuple, Optional
-import pickle
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +32,14 @@ class ReplayBuffer:
         self.buffer = deque(maxlen=max_size)
         self.max_size = max_size
 
-    def add(self, state: np.ndarray, action: int, reward: float,
-            next_state: np.ndarray, done: bool):
+    def add(
+        self,
+        state: np.ndarray,
+        action: int,
+        reward: float,
+        next_state: np.ndarray,
+        done: bool,
+    ):
         """Add experience to buffer"""
         self.buffer.append((state, action, reward, next_state, done))
 
@@ -68,16 +75,18 @@ class ReplayBuffer:
 class DQNAgent:
     """Deep Q-Network Agent for IDS"""
 
-    def __init__(self,
-                 state_size: int,
-                 action_size: int = 3,
-                 learning_rate: float = 0.001,
-                 gamma: float = 0.95,
-                 epsilon: float = 1.0,
-                 epsilon_min: float = 0.01,
-                 epsilon_decay: float = 0.995,
-                 batch_size: int = 64,
-                 buffer_size: int = 10000):
+    def __init__(
+        self,
+        state_size: int,
+        action_size: int = 3,
+        learning_rate: float = 0.001,
+        gamma: float = 0.95,
+        epsilon: float = 1.0,
+        epsilon_min: float = 0.01,
+        epsilon_decay: float = 0.995,
+        batch_size: int = 64,
+        buffer_size: int = 10000,
+    ):
         """
         Initialize DQN Agent
 
@@ -124,29 +133,26 @@ class DQNAgent:
         Returns:
             Keras model
         """
-        model = models.Sequential([
-            layers.InputLayer(input_shape=(self.state_size,)),
-
-            # Deep network for complex pattern recognition
-            layers.Dense(256, activation='relu'),
-            layers.Dropout(0.2),
-
-            layers.Dense(128, activation='relu'),
-            layers.Dropout(0.2),
-
-            layers.Dense(64, activation='relu'),
-            layers.Dropout(0.1),
-
-            layers.Dense(32, activation='relu'),
-
-            # Output layer: Q-values for each action
-            layers.Dense(self.action_size, activation='linear')
-        ])
+        model = models.Sequential(
+            [
+                layers.InputLayer(input_shape=(self.state_size,)),
+                # Deep network for complex pattern recognition
+                layers.Dense(256, activation="relu"),
+                layers.Dropout(0.2),
+                layers.Dense(128, activation="relu"),
+                layers.Dropout(0.2),
+                layers.Dense(64, activation="relu"),
+                layers.Dropout(0.1),
+                layers.Dense(32, activation="relu"),
+                # Output layer: Q-values for each action
+                layers.Dense(self.action_size, activation="linear"),
+            ]
+        )
 
         model.compile(
             optimizer=optimizers.Adam(learning_rate=self.learning_rate),
-            loss='mse',
-            metrics=['mae']
+            loss="mse",
+            metrics=["mae"],
         )
 
         return model
@@ -155,8 +161,14 @@ class DQNAgent:
         """Copy weights from main model to target model"""
         self.target_model.set_weights(self.model.get_weights())
 
-    def remember(self, state: np.ndarray, action: int, reward: float,
-                 next_state: np.ndarray, done: bool):
+    def remember(
+        self,
+        state: np.ndarray,
+        action: int,
+        reward: float,
+        next_state: np.ndarray,
+        done: bool,
+    ):
         """
         Store experience in replay buffer
 
@@ -193,18 +205,26 @@ class DQNAgent:
 
         return np.argmax(q_values)
 
-    def replay(self) -> Optional[float]:
+    def replay(self, batch_size: Optional[int] = None) -> Optional[float]:
         """
         Train on batch from replay buffer
+
+        Args:
+            batch_size: Optional batch size for training. If None, uses self.batch_size
 
         Returns:
             Training loss or None if buffer too small
         """
-        if self.replay_buffer.size() < self.batch_size:
+        # Use provided batch_size or default to instance batch_size
+        batch_size = batch_size if batch_size is not None else self.batch_size
+
+        if self.replay_buffer.size() < batch_size:
             return None
 
         # Sample batch from replay buffer
-        states, actions, rewards, next_states, dones = self.replay_buffer.sample(self.batch_size)
+        states, actions, rewards, next_states, dones = self.replay_buffer.sample(
+            batch_size
+        )
 
         # Predict Q-values for current states
         current_q_values = self.model.predict(states, verbose=0)
@@ -215,23 +235,22 @@ class DQNAgent:
         # Calculate target Q-values
         target_q_values = current_q_values.copy()
 
-        for i in range(self.batch_size):
+        for i in range(batch_size):
             if dones[i]:
                 # If terminal state, target = reward
                 target_q_values[i][actions[i]] = rewards[i]
             else:
                 # Q-learning update: Q(s,a) = r + gamma * max(Q(s',a'))
-                target_q_values[i][actions[i]] = rewards[i] + self.gamma * np.max(next_q_values[i])
+                target_q_values[i][actions[i]] = rewards[i] + self.gamma * np.max(
+                    next_q_values[i]
+                )
 
         # Train model
         history = self.model.fit(
-            states, target_q_values,
-            batch_size=self.batch_size,
-            epochs=1,
-            verbose=0
+            states, target_q_values, batch_size=self.batch_size, epochs=1, verbose=0
         )
 
-        loss = history.history['loss'][0]
+        loss = history.history["loss"][0]
         self.losses.append(loss)
 
         # Decay epsilon
@@ -250,7 +269,9 @@ class DQNAgent:
         for episode in range(n_episodes):
             loss = self.replay()
             if loss is not None:
-                logger.info(f"Episode {episode+1}/{n_episodes}, Loss: {loss:.4f}, Epsilon: {self.epsilon:.3f}")
+                logger.info(
+                    f"Episode {episode+1}/{n_episodes}, Loss: {loss:.4f}, Epsilon: {self.epsilon:.3f}"
+                )
 
     def save(self, filepath: str):
         """
@@ -267,19 +288,19 @@ class DQNAgent:
 
         # Save agent parameters
         params = {
-            'state_size': self.state_size,
-            'action_size': self.action_size,
-            'learning_rate': self.learning_rate,
-            'gamma': self.gamma,
-            'epsilon': self.epsilon,
-            'epsilon_min': self.epsilon_min,
-            'epsilon_decay': self.epsilon_decay,
-            'batch_size': self.batch_size,
-            'losses': self.losses,
+            "state_size": self.state_size,
+            "action_size": self.action_size,
+            "learning_rate": self.learning_rate,
+            "gamma": self.gamma,
+            "epsilon": self.epsilon,
+            "epsilon_min": self.epsilon_min,
+            "epsilon_decay": self.epsilon_decay,
+            "batch_size": self.batch_size,
+            "losses": self.losses,
         }
 
         params_file = filepath.parent / f"{filepath.stem}_params.pkl"
-        with open(params_file, 'wb') as f:
+        with open(params_file, "wb") as f:
             pickle.dump(params, f)
 
         logger.info(f"Saved agent to {filepath}")
@@ -300,22 +321,26 @@ class DQNAgent:
         # Load parameters
         params_file = filepath.parent / f"{filepath.stem}_params.pkl"
         if params_file.exists():
-            with open(params_file, 'rb') as f:
+            with open(params_file, "rb") as f:
                 params = pickle.load(f)
 
-            self.epsilon = params.get('epsilon', self.epsilon)
-            self.losses = params.get('losses', [])
+            self.epsilon = params.get("epsilon", self.epsilon)
+            self.losses = params.get("losses", [])
 
         logger.info(f"Loaded agent from {filepath}")
 
     def get_stats(self) -> dict:
         """Get training statistics"""
         return {
-            'epsilon': self.epsilon,
-            'buffer_size': self.replay_buffer.size(),
-            'avg_loss': np.mean(self.losses[-100:]) if self.losses else 0,
-            'total_updates': len(self.losses),
-            'avg_q_value': np.mean([np.max(q) for q in self.q_values[-100:]]) if self.q_values else 0
+            "epsilon": self.epsilon,
+            "buffer_size": self.replay_buffer.size(),
+            "avg_loss": np.mean(self.losses[-100:]) if self.losses else 0,
+            "total_updates": len(self.losses),
+            "avg_q_value": (
+                np.mean([np.max(q) for q in self.q_values[-100:]])
+                if self.q_values
+                else 0
+            ),
         }
 
 
@@ -325,18 +350,26 @@ class DoubleDQNAgent(DQNAgent):
     Uses main network for action selection and target network for evaluation
     """
 
-    def replay(self) -> Optional[float]:
+    def replay(self, batch_size: Optional[int] = None) -> Optional[float]:
         """
         Train on batch using Double DQN algorithm
+
+        Args:
+            batch_size: Optional batch size for training. If None, uses self.batch_size
 
         Returns:
             Training loss or None if buffer too small
         """
-        if self.replay_buffer.size() < self.batch_size:
+        # Use provided batch_size or default to instance batch_size
+        batch_size = batch_size if batch_size is not None else self.batch_size
+
+        if self.replay_buffer.size() < batch_size:
             return None
 
         # Sample batch
-        states, actions, rewards, next_states, dones = self.replay_buffer.sample(self.batch_size)
+        states, actions, rewards, next_states, dones = self.replay_buffer.sample(
+            batch_size
+        )
 
         # Predict Q-values
         current_q_values = self.model.predict(states, verbose=0)
@@ -347,24 +380,23 @@ class DoubleDQNAgent(DQNAgent):
 
         target_q_values = current_q_values.copy()
 
-        for i in range(self.batch_size):
+        for i in range(batch_size):
             if dones[i]:
                 target_q_values[i][actions[i]] = rewards[i]
             else:
                 # Select action using main network
                 best_action = np.argmax(next_q_values_main[i])
                 # Evaluate using target network
-                target_q_values[i][actions[i]] = rewards[i] + self.gamma * next_q_values_target[i][best_action]
+                target_q_values[i][actions[i]] = (
+                    rewards[i] + self.gamma * next_q_values_target[i][best_action]
+                )
 
         # Train
         history = self.model.fit(
-            states, target_q_values,
-            batch_size=self.batch_size,
-            epochs=1,
-            verbose=0
+            states, target_q_values, batch_size=batch_size, epochs=1, verbose=0
         )
 
-        loss = history.history['loss'][0]
+        loss = history.history["loss"][0]
         self.losses.append(loss)
 
         if self.epsilon > self.epsilon_min:

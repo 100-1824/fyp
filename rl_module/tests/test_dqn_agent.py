@@ -3,15 +3,16 @@
 Unit Tests for DQN Agent
 """
 
-import unittest
-import numpy as np
 import sys
+import unittest
 from pathlib import Path
+
+import numpy as np
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from rl_module.agents.dqn_agent import DQNAgent, DoubleDQNAgent
+from rl_module.agents.dqn_agent import DoubleDQNAgent, DQNAgent
 
 
 class TestDQNAgent(unittest.TestCase):
@@ -26,7 +27,7 @@ class TestDQNAgent(unittest.TestCase):
             action_size=self.action_size,
             learning_rate=0.001,
             gamma=0.95,
-            epsilon=1.0
+            epsilon=1.0,
         )
 
     def test_initialization(self):
@@ -143,7 +144,8 @@ class TestDQNAgent(unittest.TestCase):
     def test_save_load(self):
         """Test model save and load"""
         import tempfile
-        with tempfile.NamedTemporaryFile(suffix='.keras', delete=False) as f:
+
+        with tempfile.NamedTemporaryFile(suffix=".keras", delete=False) as f:
             temp_path = f.name
 
         try:
@@ -177,8 +179,7 @@ class TestDoubleDQNAgent(unittest.TestCase):
         self.state_size = 77
         self.action_size = 3
         self.agent = DoubleDQNAgent(
-            state_size=self.state_size,
-            action_size=self.action_size
+            state_size=self.state_size, action_size=self.action_size
         )
 
     def test_initialization(self):
@@ -228,5 +229,5 @@ class TestDoubleDQNAgent(unittest.TestCase):
         self.assertIn(action_ddqn, [0, 1, 2])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

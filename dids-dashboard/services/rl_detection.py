@@ -3,14 +3,15 @@ RL-based Adaptive Threat Detection Service
 Integrates trained RL agent for intelligent threat response
 """
 
+import json
+import logging
+import pickle
+from pathlib import Path
+from typing import Any, Dict, Optional
+
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
-import logging
-from pathlib import Path
-from typing import Dict, Any, Optional
-import pickle
-import json
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class RLDetectionService:
             model_path: Path to trained RL model
         """
         self.config = config
-        self.model_path = Path(model_path or 'rl-module/trained_models')
+        self.model_path = Path(model_path or "rl-module/trained_models")
 
         # RL Agent model
         self.rl_model = None
@@ -35,15 +36,11 @@ class RLDetectionService:
         self.feature_names = None
 
         # Action mapping
-        self.action_map = {
-            0: 'allow',
-            1: 'alert',
-            2: 'block'
-        }
+        self.action_map = {0: "allow", 1: "alert", 2: "block"}
 
         # Detection tracking
         self.detections = []
-        self.actions_taken = {'allow': 0, 'alert': 0, 'block': 0}
+        self.actions_taken = {"allow": 0, "alert": 0, "block": 0}
 
         # Performance metrics
         self.decisions_made = 0
@@ -64,13 +61,15 @@ class RLDetectionService:
             logger.info(f"Loading RL model from {self.model_path}")
 
             # Try to load Double DQN model first
-            model_file = self.model_path / 'double_dqn_final.keras'
+            model_file = self.model_path / "double_dqn_final.keras"
             if not model_file.exists():
                 # Fallback to regular DQN
-                model_file = self.model_path / 'dqn_final.keras'
+                model_file = self.model_path / "dqn_final.keras"
 
             if not model_file.exists():
-                logger.warning("RL model not found. RL detection will not be available.")
+                logger.warning(
+                    "RL model not found. RL detection will not be available."
+                )
                 return False
 
             # Load RL model
@@ -78,16 +77,16 @@ class RLDetectionService:
             logger.info(f"✓ Loaded RL model: {model_file.name}")
 
             # Load scaler (from ML training)
-            scaler_file = Path('dids-dashboard/model/scaler.pkl')
+            scaler_file = Path("dids-dashboard/model/scaler.pkl")
             if scaler_file.exists():
-                with open(scaler_file, 'rb') as f:
+                with open(scaler_file, "rb") as f:
                     self.scaler = pickle.load(f)
                 logger.info("✓ Loaded feature scaler")
 
             # Load feature names
-            features_file = Path('dids-dashboard/model/feature_names.json')
+            features_file = Path("dids-dashboard/model/feature_names.json")
             if features_file.exists():
-                with open(features_file, 'r') as f:
+                with open(features_file, "r") as f:
                     self.feature_names = json.load(f)
                 logger.info(f"✓ Loaded {len(self.feature_names)} feature names")
 
@@ -111,15 +110,15 @@ class RLDetectionService:
         try:
             # Basic features from packet
             features = {
-                'protocol': self._encode_protocol(packet_data.get('protocol', 'TCP')),
-                'packet_length': float(packet_data.get('size', 0)),
-                'src_port': float(packet_data.get('src_port', 0)),
-                'dst_port': float(packet_data.get('dst_port', 0)),
-                'flag_syn': float(packet_data.get('syn', 0)),
-                'flag_ack': float(packet_data.get('ack', 0)),
-                'flag_psh': float(packet_data.get('psh', 0)),
-                'flag_rst': float(packet_data.get('rst', 0)),
-                'flag_fin': float(packet_data.get('fin', 0)),
+                "protocol": self._encode_protocol(packet_data.get("protocol", "TCP")),
+                "packet_length": float(packet_data.get("size", 0)),
+                "src_port": float(packet_data.get("src_port", 0)),
+                "dst_port": float(packet_data.get("dst_port", 0)),
+                "flag_syn": float(packet_data.get("syn", 0)),
+                "flag_ack": float(packet_data.get("ack", 0)),
+                "flag_psh": float(packet_data.get("psh", 0)),
+                "flag_rst": float(packet_data.get("rst", 0)),
+                "flag_fin": float(packet_data.get("fin", 0)),
             }
 
             # Create feature vector matching training format
@@ -149,19 +148,20 @@ class RLDetectionService:
     def _encode_protocol(self, protocol: str) -> float:
         """Encode protocol string to numeric value"""
         protocol_map = {
-            'TCP': 6.0,
-            'UDP': 17.0,
-            'ICMP': 1.0,
-            'HTTP': 6.0,
-            'HTTPS': 6.0,
-            'DNS': 17.0,
-            'SSH': 6.0,
-            'FTP': 6.0
+            "TCP": 6.0,
+            "UDP": 17.0,
+            "ICMP": 1.0,
+            "HTTP": 6.0,
+            "HTTPS": 6.0,
+            "DNS": 17.0,
+            "SSH": 6.0,
+            "FTP": 6.0,
         }
         return protocol_map.get(protocol.upper(), 0.0)
 
-    def decide_action(self, packet_data: Dict[str, Any],
-                      ai_detection: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def decide_action(
+        self, packet_data: Dict[str, Any], ai_detection: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
         Use RL agent to decide action for network traffic
 
@@ -197,29 +197,29 @@ class RLDetectionService:
             self.decisions_made += 1
             self.actions_taken[action] += 1
 
-            if action == 'block':
+            if action == "block":
                 self.threats_blocked += 1
-            elif action == 'alert':
+            elif action == "alert":
                 self.alerts_raised += 1
 
             # Create decision record
             decision = {
-                'action': action,
-                'confidence': float(confidence * 100),
-                'q_values': {
-                    'allow': float(q_values[0]),
-                    'alert': float(q_values[1]),
-                    'block': float(q_values[2])
+                "action": action,
+                "confidence": float(confidence * 100),
+                "q_values": {
+                    "allow": float(q_values[0]),
+                    "alert": float(q_values[1]),
+                    "block": float(q_values[2]),
                 },
-                'source': packet_data.get('source'),
-                'destination': packet_data.get('destination'),
-                'protocol': packet_data.get('protocol'),
-                'reason': self._get_action_reason(action, q_values, ai_detection),
-                'rl_based': True
+                "source": packet_data.get("source"),
+                "destination": packet_data.get("destination"),
+                "protocol": packet_data.get("protocol"),
+                "reason": self._get_action_reason(action, q_values, ai_detection),
+                "rl_based": True,
             }
 
             # Store detection if action is alert or block
-            if action in ['alert', 'block']:
+            if action in ["alert", "block"]:
                 self.detections.append(decision)
                 # Keep only recent detections
                 if len(self.detections) > 100:
@@ -231,8 +231,9 @@ class RLDetectionService:
             logger.error(f"Error in RL decision: {e}")
             return self._fallback_policy(packet_data, ai_detection)
 
-    def _fallback_policy(self, packet_data: Dict[str, Any],
-                         ai_detection: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _fallback_policy(
+        self, packet_data: Dict[str, Any], ai_detection: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
         Fallback policy when RL agent is not available
 
@@ -245,44 +246,48 @@ class RLDetectionService:
         """
         # Simple rule-based fallback
         if ai_detection:
-            confidence = ai_detection.get('confidence', 0)
-            attack_type = ai_detection.get('attack_type', '')
+            confidence = ai_detection.get("confidence", 0)
+            attack_type = ai_detection.get("attack_type", "")
 
             if confidence >= 90:
-                action = 'block'
+                action = "block"
             elif confidence >= 70:
-                action = 'alert'
+                action = "alert"
             else:
-                action = 'allow'
+                action = "allow"
 
             return {
-                'action': action,
-                'confidence': confidence,
-                'reason': f"AI detected {attack_type}",
-                'rl_based': False
+                "action": action,
+                "confidence": confidence,
+                "reason": f"AI detected {attack_type}",
+                "rl_based": False,
             }
 
         # Default: allow
         return {
-            'action': 'allow',
-            'confidence': 100.0,
-            'reason': 'No threat detected',
-            'rl_based': False
+            "action": "allow",
+            "confidence": 100.0,
+            "reason": "No threat detected",
+            "rl_based": False,
         }
 
-    def _get_action_reason(self, action: str, q_values: np.ndarray,
-                          ai_detection: Optional[Dict[str, Any]] = None) -> str:
+    def _get_action_reason(
+        self,
+        action: str,
+        q_values: np.ndarray,
+        ai_detection: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """Generate human-readable reason for action"""
         if ai_detection:
-            attack_type = ai_detection.get('attack_type', 'Unknown')
-            ai_confidence = ai_detection.get('confidence', 0)
+            attack_type = ai_detection.get("attack_type", "Unknown")
+            ai_confidence = ai_detection.get("confidence", 0)
 
-        if action == 'block':
+        if action == "block":
             if ai_detection:
                 return f"RL agent decided to block based on {attack_type} detection (AI confidence: {ai_confidence}%)"
             return f"RL agent detected high threat level (Q-value: {q_values[2]:.2f})"
 
-        elif action == 'alert':
+        elif action == "alert":
             if ai_detection:
                 return f"RL agent raised alert for suspicious {attack_type} activity"
             return f"RL agent detected suspicious activity (Q-value: {q_values[1]:.2f})"
@@ -293,12 +298,12 @@ class RLDetectionService:
     def get_statistics(self) -> Dict[str, Any]:
         """Get RL detection statistics"""
         return {
-            'total_decisions': self.decisions_made,
-            'threats_blocked': self.threats_blocked,
-            'alerts_raised': self.alerts_raised,
-            'actions_distribution': self.actions_taken.copy(),
-            'recent_detections': len(self.detections),
-            'rl_model_loaded': self.rl_model is not None
+            "total_decisions": self.decisions_made,
+            "threats_blocked": self.threats_blocked,
+            "alerts_raised": self.alerts_raised,
+            "actions_distribution": self.actions_taken.copy(),
+            "recent_detections": len(self.detections),
+            "rl_model_loaded": self.rl_model is not None,
         }
 
     def get_recent_decisions(self, limit: int = 20) -> list:

@@ -4,18 +4,18 @@ Database Initialization Script
 Run this script to initialize MongoDB collections with schemas and indexes
 """
 
+import logging
 import sys
+
+from config import config
+from database import create_indexes, init_database
+from database.schemas import get_collection_stats
 from flask import Flask
 from flask_pymongo import PyMongo
-from config import config
-from database import init_database, create_indexes
-from database.schemas import get_collection_stats
-import logging
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -23,20 +23,22 @@ logger = logging.getLogger(__name__)
 def main():
     """Initialize database"""
     # Get command line arguments
-    drop_existing = '--drop' in sys.argv
-    env = 'development'
+    drop_existing = "--drop" in sys.argv
+    env = "development"
 
-    if '--production' in sys.argv:
-        env = 'production'
-    elif '--testing' in sys.argv:
-        env = 'testing'
+    if "--production" in sys.argv:
+        env = "production"
+    elif "--testing" in sys.argv:
+        env = "testing"
 
     logger.info(f"Initializing database in {env} environment")
 
     if drop_existing:
-        logger.warning("WARNING: --drop flag provided. All existing data will be deleted!")
+        logger.warning(
+            "WARNING: --drop flag provided. All existing data will be deleted!"
+        )
         response = input("Are you sure you want to continue? (yes/no): ")
-        if response.lower() != 'yes':
+        if response.lower() != "yes":
             logger.info("Initialization cancelled")
             return
 
@@ -49,7 +51,7 @@ def main():
 
     try:
         # Test connection
-        mongo.db.command('ping')
+        mongo.db.command("ping")
         logger.info("Successfully connected to MongoDB")
 
         # Initialize collections
@@ -66,10 +68,10 @@ def main():
         logger.info("\nCollection Statistics:")
         stats = get_collection_stats(mongo.db)
         for collection, info in stats.items():
-            if 'error' in info:
+            if "error" in info:
                 logger.error(f"  {collection}: ERROR - {info['error']}")
             else:
-                size_mb = info['size_bytes'] / 1024 / 1024
+                size_mb = info["size_bytes"] / 1024 / 1024
                 logger.info(
                     f"  {collection}: {info['count']} documents, "
                     f"{info['indexes']} indexes, {size_mb:.2f} MB"
@@ -82,9 +84,10 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
-    if '--help' in sys.argv or '-h' in sys.argv:
-        print("""
+if __name__ == "__main__":
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print(
+            """
 Database Initialization Script
 
 Usage:
@@ -108,7 +111,8 @@ Examples:
 
   # Initialize test database
   python init_db.py --testing
-        """)
+        """
+        )
         sys.exit(0)
 
     main()

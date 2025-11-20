@@ -3,10 +3,11 @@
 Unit Tests for IDS Environment
 """
 
-import unittest
-import numpy as np
 import sys
+import unittest
 from pathlib import Path
+
+import numpy as np
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -161,18 +162,18 @@ class TestIDSEnvironment(unittest.TestCase):
         _, _, _, info = self.env.step(0)
 
         # Check required keys
-        self.assertIn('true_label', info)
-        self.assertIn('predicted_label', info)
-        self.assertIn('action', info)
-        self.assertIn('accuracy', info)
-        self.assertIn('f1_score', info)
+        self.assertIn("true_label", info)
+        self.assertIn("predicted_label", info)
+        self.assertIn("action", info)
+        self.assertIn("accuracy", info)
+        self.assertIn("f1_score", info)
 
         # Check types
-        self.assertIsInstance(info['true_label'], (int, np.integer))
-        self.assertIsInstance(info['predicted_label'], (int, np.integer))
-        self.assertIsInstance(info['action'], (int, np.integer))
-        self.assertIsInstance(info['accuracy'], float)
-        self.assertIsInstance(info['f1_score'], float)
+        self.assertIsInstance(info["true_label"], (int, np.integer))
+        self.assertIsInstance(info["predicted_label"], (int, np.integer))
+        self.assertIsInstance(info["action"], (int, np.integer))
+        self.assertIsInstance(info["accuracy"], float)
+        self.assertIsInstance(info["f1_score"], float)
 
     def test_invalid_action(self):
         """Test invalid action handling"""
@@ -200,25 +201,25 @@ class TestIDSEnvironment(unittest.TestCase):
         self.env.y[0] = 0
         self.env.current_index = 0
         _, r1, _, _ = self.env.step(0)
-        rewards.append(('benign_allow', r1))
+        rewards.append(("benign_allow", r1))
 
         # Attack + Block (correct)
         self.env.y[1] = 1
         self.env.current_index = 1
         _, r2, _, _ = self.env.step(1)
-        rewards.append(('attack_block', r2))
+        rewards.append(("attack_block", r2))
 
         # Benign + Block (incorrect)
         self.env.y[2] = 0
         self.env.current_index = 2
         _, r3, _, _ = self.env.step(1)
-        rewards.append(('benign_block', r3))
+        rewards.append(("benign_block", r3))
 
         # Attack + Allow (incorrect)
         self.env.y[3] = 1
         self.env.current_index = 3
         _, r4, _, _ = self.env.step(0)
-        rewards.append(('attack_allow', r4))
+        rewards.append(("attack_allow", r4))
 
         # Correct actions should have positive rewards
         self.assertGreater(r1, 0, "Benign + Allow should be positive")
@@ -285,5 +286,5 @@ class TestIDSEnvironmentEdgeCases(unittest.TestCase):
         self.assertEqual(state.shape, (1, 77))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

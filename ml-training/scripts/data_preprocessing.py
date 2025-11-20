@@ -4,18 +4,21 @@ Data Preprocessing Script for IDS Datasets
 Supports: CICIDS2017, CICIDS2018, NSL-KDD, UNSW-NB15, and custom datasets
 """
 
-import pandas as pd
-import numpy as np
-from pathlib import Path
-import logging
-from typing import Tuple, Dict, List, Optional
-import yaml
-from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler
-from sklearn.model_selection import train_test_split
-import pickle
 import json
+import logging
+import pickle
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+import numpy as np
+import pandas as pd
+import yaml
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler, StandardScaler
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -24,13 +27,13 @@ class DataPreprocessor:
 
     def __init__(self, config_path: str = "ml-training/configs/training_config.yaml"):
         """Initialize preprocessor with configuration"""
-        with open(config_path, 'r') as f:
+        with open(config_path, "r") as f:
             self.config = yaml.safe_load(f)
 
-        self.dataset_name = self.config['data']['dataset_name']
-        self.raw_data_path = Path(self.config['data']['raw_data_path'])
-        self.processed_path = Path(self.config['data']['processed_data_path'])
-        self.preprocessed_path = Path(self.config['data']['preprocessed_data_path'])
+        self.dataset_name = self.config["data"]["dataset_name"]
+        self.raw_data_path = Path(self.config["data"]["raw_data_path"])
+        self.processed_path = Path(self.config["data"]["processed_data_path"])
+        self.preprocessed_path = Path(self.config["data"]["preprocessed_data_path"])
 
         # Create directories
         self.processed_path.mkdir(parents=True, exist_ok=True)
@@ -55,12 +58,12 @@ class DataPreprocessor:
         for csv_file in csv_files:
             logger.info(f"Reading {csv_file.name}...")
             try:
-                df = pd.read_csv(csv_file, encoding='utf-8', low_memory=False)
+                df = pd.read_csv(csv_file, encoding="utf-8", low_memory=False)
                 dfs.append(df)
             except Exception as e:
                 logger.warning(f"Error reading {csv_file.name}: {e}")
                 try:
-                    df = pd.read_csv(csv_file, encoding='latin-1', low_memory=False)
+                    df = pd.read_csv(csv_file, encoding="latin-1", low_memory=False)
                     dfs.append(df)
                 except Exception as e2:
                     logger.error(f"Failed to read {csv_file.name}: {e2}")
@@ -79,18 +82,49 @@ class DataPreprocessor:
 
         # NSL-KDD column names
         columns = [
-            'duration', 'protocol_type', 'service', 'flag', 'src_bytes', 'dst_bytes',
-            'land', 'wrong_fragment', 'urgent', 'hot', 'num_failed_logins',
-            'logged_in', 'num_compromised', 'root_shell', 'su_attempted',
-            'num_root', 'num_file_creations', 'num_shells', 'num_access_files',
-            'num_outbound_cmds', 'is_host_login', 'is_guest_login', 'count',
-            'srv_count', 'serror_rate', 'srv_serror_rate', 'rerror_rate',
-            'srv_rerror_rate', 'same_srv_rate', 'diff_srv_rate',
-            'srv_diff_host_rate', 'dst_host_count', 'dst_host_srv_count',
-            'dst_host_same_srv_rate', 'dst_host_diff_srv_rate',
-            'dst_host_same_src_port_rate', 'dst_host_srv_diff_host_rate',
-            'dst_host_serror_rate', 'dst_host_srv_serror_rate',
-            'dst_host_rerror_rate', 'dst_host_srv_rerror_rate', 'label', 'difficulty'
+            "duration",
+            "protocol_type",
+            "service",
+            "flag",
+            "src_bytes",
+            "dst_bytes",
+            "land",
+            "wrong_fragment",
+            "urgent",
+            "hot",
+            "num_failed_logins",
+            "logged_in",
+            "num_compromised",
+            "root_shell",
+            "su_attempted",
+            "num_root",
+            "num_file_creations",
+            "num_shells",
+            "num_access_files",
+            "num_outbound_cmds",
+            "is_host_login",
+            "is_guest_login",
+            "count",
+            "srv_count",
+            "serror_rate",
+            "srv_serror_rate",
+            "rerror_rate",
+            "srv_rerror_rate",
+            "same_srv_rate",
+            "diff_srv_rate",
+            "srv_diff_host_rate",
+            "dst_host_count",
+            "dst_host_srv_count",
+            "dst_host_same_srv_rate",
+            "dst_host_diff_srv_rate",
+            "dst_host_same_src_port_rate",
+            "dst_host_srv_diff_host_rate",
+            "dst_host_serror_rate",
+            "dst_host_srv_serror_rate",
+            "dst_host_rerror_rate",
+            "dst_host_srv_rerror_rate",
+            "label",
+            "difficulty",
         ]
 
         train_file = self.raw_data_path / "KDDTrain+.txt"
@@ -135,14 +169,16 @@ class DataPreprocessor:
 
         # Identify label column (usually 'Label' or 'label' or last column)
         label_col = None
-        for col in ['Label', 'label', 'attack_type', 'class']:
+        for col in ["Label", "label", "attack_type", "class"]:
             if col in df.columns:
                 label_col = col
                 break
 
         if label_col is None:
             label_col = df.columns[-1]
-            logger.warning(f"No standard label column found, using last column: {label_col}")
+            logger.warning(
+                f"No standard label column found, using last column: {label_col}"
+            )
 
         # Store label column
         self.label_column = label_col
@@ -164,10 +200,13 @@ class DataPreprocessor:
                 df[col].fillna(df[col].median(), inplace=True)
 
         # For categorical columns, fill with mode
-        categorical_cols = df.select_dtypes(include=['object']).columns
+        categorical_cols = df.select_dtypes(include=["object"]).columns
         for col in categorical_cols:
             if col != label_col:
-                df[col].fillna(df[col].mode()[0] if len(df[col].mode()) > 0 else 'unknown', inplace=True)
+                df[col].fillna(
+                    df[col].mode()[0] if len(df[col].mode()) > 0 else "unknown",
+                    inplace=True,
+                )
 
         missing_after = df.isnull().sum().sum()
         logger.info(f"Handled {missing_before - missing_after} missing values")
@@ -187,7 +226,7 @@ class DataPreprocessor:
         """Encode categorical features"""
         logger.info("Encoding categorical features...")
 
-        categorical_cols = df.select_dtypes(include=['object']).columns.tolist()
+        categorical_cols = df.select_dtypes(include=["object"]).columns.tolist()
 
         # Remove label column from categorical encoding
         if self.label_column in categorical_cols:
@@ -206,50 +245,41 @@ class DataPreprocessor:
 
         # Define label mapping for CICIDS2017
         label_mapping = {
-            'BENIGN': 'Benign',
-            'benign': 'Benign',
-            'normal': 'Benign',
-            'Normal': 'Benign',
-
+            "BENIGN": "Benign",
+            "benign": "Benign",
+            "normal": "Benign",
+            "Normal": "Benign",
             # DDoS attacks
-            'DDoS': 'DDoS',
-            'ddos': 'DDoS',
-
+            "DDoS": "DDoS",
+            "ddos": "DDoS",
             # DoS attacks
-            'DoS Hulk': 'DoS',
-            'DoS GoldenEye': 'DoS',
-            'DoS slowloris': 'DoS',
-            'DoS Slowhttptest': 'DoS',
-            'DoS slowhttptest': 'DoS',
-
+            "DoS Hulk": "DoS",
+            "DoS GoldenEye": "DoS",
+            "DoS slowloris": "DoS",
+            "DoS Slowhttptest": "DoS",
+            "DoS slowhttptest": "DoS",
             # Port Scan
-            'PortScan': 'PortScan',
-            'Portscan': 'PortScan',
-
+            "PortScan": "PortScan",
+            "Portscan": "PortScan",
             # Botnet
-            'Bot': 'Botnet',
-            'bot': 'Botnet',
-
+            "Bot": "Botnet",
+            "bot": "Botnet",
             # FTP attacks
-            'FTP-Patator': 'Brute Force',
-
+            "FTP-Patator": "Brute Force",
             # SSH attacks
-            'SSH-Patator': 'Brute Force',
-
+            "SSH-Patator": "Brute Force",
             # Web attacks
-            'Web Attack � Brute Force': 'Web Attack',
-            'Web Attack � XSS': 'Web Attack',
-            'Web Attack � Sql Injection': 'Web Attack',
-            'Web Attack - Brute Force': 'Web Attack',
-            'Web Attack - XSS': 'Web Attack',
-            'Web Attack - Sql Injection': 'Web Attack',
-
+            "Web Attack � Brute Force": "Web Attack",
+            "Web Attack � XSS": "Web Attack",
+            "Web Attack � Sql Injection": "Web Attack",
+            "Web Attack - Brute Force": "Web Attack",
+            "Web Attack - XSS": "Web Attack",
+            "Web Attack - Sql Injection": "Web Attack",
             # Infiltration
-            'Infiltration': 'Infiltration',
-            'Infiltration - Portscan': 'Infiltration',
-
+            "Infiltration": "Infiltration",
+            "Infiltration - Portscan": "Infiltration",
             # Heartbleed
-            'Heartbleed': 'Exploit',
+            "Heartbleed": "Exploit",
         }
 
         df[self.label_column] = df[self.label_column].astype(str).str.strip()
@@ -261,33 +291,37 @@ class DataPreprocessor:
 
         return df
 
-    def balance_dataset(self, X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def balance_dataset(
+        self, X: np.ndarray, y: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Balance dataset using sampling strategy"""
-        if not self.config['data']['use_sampling']:
+        if not self.config["data"]["use_sampling"]:
             return X, y
 
         logger.info("Balancing dataset...")
 
-        strategy = self.config['data']['sampling_strategy']
+        strategy = self.config["data"]["sampling_strategy"]
 
         try:
             if strategy == "SMOTE":
                 from imblearn.over_sampling import SMOTE
+
                 sampler = SMOTE(random_state=42, k_neighbors=3)
                 X_balanced, y_balanced = sampler.fit_resample(X, y)
             elif strategy == "RandomUnderSampler":
                 from imblearn.under_sampling import RandomUnderSampler
+
                 sampler = RandomUnderSampler(random_state=42)
                 X_balanced, y_balanced = sampler.fit_resample(X, y)
             else:
                 # Hybrid approach
                 from imblearn.over_sampling import SMOTE
-                from imblearn.under_sampling import RandomUnderSampler
                 from imblearn.pipeline import Pipeline
+                from imblearn.under_sampling import RandomUnderSampler
 
                 over = SMOTE(random_state=42, k_neighbors=3)
                 under = RandomUnderSampler(random_state=42)
-                pipeline = Pipeline([('over', over), ('under', under)])
+                pipeline = Pipeline([("over", over), ("under", under)])
                 X_balanced, y_balanced = pipeline.fit_resample(X, y)
 
             logger.info(f"Balanced from {len(X)} to {len(X_balanced)} samples")
@@ -301,18 +335,21 @@ class DataPreprocessor:
             logger.warning(f"Error during balancing: {e}. Using original data.")
             return X, y
 
-    def feature_selection(self, X: np.ndarray, feature_names: List[str]) -> Tuple[np.ndarray, List[str]]:
+    def feature_selection(
+        self, X: np.ndarray, feature_names: List[str]
+    ) -> Tuple[np.ndarray, List[str]]:
         """Select most important features"""
-        if not self.config['data']['use_feature_selection']:
+        if not self.config["data"]["use_feature_selection"]:
             return X, feature_names
 
         logger.info("Performing feature selection...")
 
-        method = self.config['data']['feature_selection_method']
-        n_features = min(self.config['data']['n_features'], X.shape[1])
+        method = self.config["data"]["feature_selection_method"]
+        n_features = min(self.config["data"]["n_features"], X.shape[1])
 
         if method == "variance":
             from sklearn.feature_selection import VarianceThreshold
+
             selector = VarianceThreshold(threshold=0.01)
             X_selected = selector.fit_transform(X)
             selected_indices = selector.get_support(indices=True)
@@ -324,24 +361,30 @@ class DataPreprocessor:
             upper_triangle = corr_matrix.where(
                 np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
             )
-            to_drop = [col for col in upper_triangle.columns if any(upper_triangle[col] > 0.95)]
+            to_drop = [
+                col for col in upper_triangle.columns if any(upper_triangle[col] > 0.95)
+            ]
             selected_features = [f for f in feature_names if f not in to_drop]
-            selected_indices = [i for i, f in enumerate(feature_names) if f in selected_features]
+            selected_indices = [
+                i for i, f in enumerate(feature_names) if f in selected_features
+            ]
             X_selected = X[:, selected_indices]
 
         else:
             return X, feature_names
 
         selected_features = [feature_names[i] for i in selected_indices]
-        logger.info(f"Selected {len(selected_features)} features from {len(feature_names)}")
+        logger.info(
+            f"Selected {len(selected_features)} features from {len(feature_names)}"
+        )
 
         return X_selected, selected_features
 
     def preprocess(self) -> Dict:
         """Main preprocessing pipeline"""
-        logger.info("="*70)
+        logger.info("=" * 70)
         logger.info("Starting Data Preprocessing Pipeline")
-        logger.info("="*70)
+        logger.info("=" * 70)
 
         # 1. Load dataset
         df = self.load_dataset()
@@ -380,25 +423,27 @@ class DataPreprocessor:
 
         # 10. Split data
         logger.info("Splitting data...")
-        train_ratio = self.config['data']['train_ratio']
-        val_ratio = self.config['data']['val_ratio']
-        test_ratio = self.config['data']['test_ratio']
+        train_ratio = self.config["data"]["train_ratio"]
+        val_ratio = self.config["data"]["val_ratio"]
+        test_ratio = self.config["data"]["test_ratio"]
 
         # First split: train + val vs test
         X_train_val, X_test, y_train_val, y_test = train_test_split(
-            X_balanced, y_balanced,
+            X_balanced,
+            y_balanced,
             test_size=test_ratio,
             random_state=42,
-            stratify=y_balanced
+            stratify=y_balanced,
         )
 
         # Second split: train vs val
         val_size = val_ratio / (train_ratio + val_ratio)
         X_train, X_val, y_train, y_val = train_test_split(
-            X_train_val, y_train_val,
+            X_train_val,
+            y_train_val,
             test_size=val_size,
             random_state=42,
-            stratify=y_train_val
+            stratify=y_train_val,
         )
 
         logger.info(f"Train set: {X_train.shape}")
@@ -416,35 +461,35 @@ class DataPreprocessor:
         np.save(self.preprocessed_path / "y_test.npy", y_test)
 
         # Save preprocessors
-        with open(self.preprocessed_path / "scaler.pkl", 'wb') as f:
+        with open(self.preprocessed_path / "scaler.pkl", "wb") as f:
             pickle.dump(self.scaler, f)
 
-        with open(self.preprocessed_path / "label_encoder.pkl", 'wb') as f:
+        with open(self.preprocessed_path / "label_encoder.pkl", "wb") as f:
             pickle.dump(self.label_encoder, f)
 
         # Save feature names
-        with open(self.preprocessed_path / "feature_names.json", 'w') as f:
+        with open(self.preprocessed_path / "feature_names.json", "w") as f:
             json.dump(selected_features, f, indent=2)
 
         # Save metadata
         metadata = {
-            'dataset_name': self.dataset_name,
-            'n_samples': len(X_balanced),
-            'n_features': X_train.shape[1],
-            'n_classes': len(class_names),
-            'class_names': class_names,
-            'feature_names': selected_features,
-            'train_samples': len(X_train),
-            'val_samples': len(X_val),
-            'test_samples': len(X_test)
+            "dataset_name": self.dataset_name,
+            "n_samples": len(X_balanced),
+            "n_features": X_train.shape[1],
+            "n_classes": len(class_names),
+            "class_names": class_names,
+            "feature_names": selected_features,
+            "train_samples": len(X_train),
+            "val_samples": len(X_val),
+            "test_samples": len(X_test),
         }
 
-        with open(self.preprocessed_path / "metadata.json", 'w') as f:
+        with open(self.preprocessed_path / "metadata.json", "w") as f:
             json.dump(metadata, f, indent=2)
 
-        logger.info("="*70)
+        logger.info("=" * 70)
         logger.info("Preprocessing Complete!")
-        logger.info("="*70)
+        logger.info("=" * 70)
 
         return metadata
 
@@ -453,9 +498,9 @@ if __name__ == "__main__":
     preprocessor = DataPreprocessor()
     metadata = preprocessor.preprocess()
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("PREPROCESSING SUMMARY")
-    print("="*70)
+    print("=" * 70)
     print(f"Dataset: {metadata['dataset_name']}")
     print(f"Total samples: {metadata['n_samples']}")
     print(f"Features: {metadata['n_features']}")
@@ -464,4 +509,4 @@ if __name__ == "__main__":
     print(f"\nTrain: {metadata['train_samples']} samples")
     print(f"Validation: {metadata['val_samples']} samples")
     print(f"Test: {metadata['test_samples']} samples")
-    print("="*70)
+    print("=" * 70)

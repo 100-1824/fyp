@@ -4,9 +4,10 @@ Generate synthetic training data for RL agent
 Creates realistic network flow features for training
 """
 
-import numpy as np
-from pathlib import Path
 import logging
+from pathlib import Path
+
+import numpy as np
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ def generate_synthetic_data(
     n_samples: int = 50000,
     n_features: int = 77,
     attack_ratio: float = 0.3,
-    output_dir: str = 'ml-training/data/preprocessed'
+    output_dir: str = "ml-training/data/preprocessed",
 ):
     """
     Generate synthetic network flow data
@@ -72,10 +73,10 @@ def generate_synthetic_data(
 
     # Save
     logger.info(f"Saving to {output_path}")
-    np.save(output_path / 'X_train.npy', X_train)
-    np.save(output_path / 'X_test.npy', X_test)
-    np.save(output_path / 'y_train.npy', y_train)
-    np.save(output_path / 'y_test.npy', y_test)
+    np.save(output_path / "X_train.npy", X_train)
+    np.save(output_path / "X_test.npy", X_test)
+    np.save(output_path / "y_train.npy", y_train)
+    np.save(output_path / "y_test.npy", y_test)
 
     logger.info("=" * 60)
     logger.info("Generated Synthetic Data:")
@@ -88,5 +89,5 @@ def generate_synthetic_data(
     return X_train, X_test, y_train, y_test
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     generate_synthetic_data(n_samples=50000)

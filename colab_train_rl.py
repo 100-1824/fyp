@@ -29,9 +29,10 @@ Alternative: Upload these 4 files individually:
 - y_train.npy
 - y_test.npy
 """
-from google.colab import files
 import os
 import tarfile
+
+from google.colab import files
 
 print("Upload training_data.tar.gz (or individual .npy files):")
 uploaded = files.upload()
@@ -48,10 +49,13 @@ for filename in uploaded.keys():
 # List extracted files
 print("\nAvailable data files:")
 import glob
+
 npy_files = glob.glob('*.npy')
 for f in npy_files:
     size_mb = os.path.getsize(f) / (1024 * 1024)
     print(f"  - {f} ({size_mb:.2f} MB)")
+
+import logging
 
 # ============================================================================
 # DQN AGENT IMPLEMENTATION
@@ -60,7 +64,6 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

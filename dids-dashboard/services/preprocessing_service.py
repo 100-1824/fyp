@@ -4,15 +4,14 @@ High-level service for packet preprocessing and feature extraction
 Integrates with database and provides clean API for detection modules
 """
 
-import numpy as np
 import logging
-from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
-from .packet_preprocessor import (
-    PacketPreprocessor,
-    EnhancedFlowTracker,
-    EnhancedFlowData
-)
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+
+from .packet_preprocessor import (EnhancedFlowData, EnhancedFlowTracker,
+                                  PacketPreprocessor)
 
 logger = logging.getLogger(__name__)
 
@@ -33,20 +32,24 @@ class PreprocessingService:
             max_flows: Maximum concurrent flows to track
         """
         self.preprocessor = PacketPreprocessor()
-        self.flow_tracker = EnhancedFlowTracker(flow_timeout=flow_timeout, max_flows=max_flows)
+        self.flow_tracker = EnhancedFlowTracker(
+            flow_timeout=flow_timeout, max_flows=max_flows
+        )
         self.db = db
 
         # Statistics
         self.stats = {
-            'packets_processed': 0,
-            'flows_created': 0,
-            'features_extracted': 0,
-            'errors': 0
+            "packets_processed": 0,
+            "flows_created": 0,
+            "features_extracted": 0,
+            "errors": 0,
         }
 
         logger.info("PreprocessingService initialized")
 
-    def process_packet(self, packet, store_db: bool = True) -> Tuple[Optional[Dict], Optional[np.ndarray]]:
+    def process_packet(
+        self, packet, store_db: bool = True
+    ) -> Tuple[Optional[Dict], Optional[np.ndarray]]:
         """
         Process a single packet through the complete pipeline
 
@@ -59,13 +62,15 @@ class PreprocessingService:
         """
         try:
             # Preprocess packet
-            packet_info, features = self.preprocessor.preprocess_packet(packet, self.flow_tracker)
+            packet_info, features = self.preprocessor.preprocess_packet(
+                packet, self.flow_tracker
+            )
 
             if packet_info:
-                self.stats['packets_processed'] += 1
+                self.stats["packets_processed"] += 1
 
                 if features is not None:
-                    self.stats['features_extracted'] += 1
+                    self.stats["features_extracted"] += 1
 
                 # Store in database if requested
                 if store_db and self.db is not None:
@@ -75,7 +80,7 @@ class PreprocessingService:
 
         except Exception as e:
             logger.error(f"Error processing packet: {e}")
-            self.stats['errors'] += 1
+            self.stats["errors"] += 1
             return None, None
 
     def process_packet_dict(self, packet_data: Dict[str, Any]) -> Optional[np.ndarray]:
@@ -100,15 +105,15 @@ class PreprocessingService:
             features = self.preprocessor.extract_flow_features(flow)
 
             # Normalize
-            normalized = self.preprocessor.normalize_features(features, method='minmax')
+            normalized = self.preprocessor.normalize_features(features, method="minmax")
 
-            self.stats['features_extracted'] += 1
+            self.stats["features_extracted"] += 1
 
             return normalized
 
         except Exception as e:
             logger.error(f"Error processing packet dict: {e}")
-            self.stats['errors'] += 1
+            self.stats["errors"] += 1
             return None
 
     def extract_features_from_flow(self, flow_id: str) -> Optional[np.ndarray]:
@@ -125,7 +130,7 @@ class PreprocessingService:
         for key, flow in self.flow_tracker.flows.items():
             if flow.flow_id == flow_id:
                 features = self.preprocessor.extract_flow_features(flow)
-                return self.preprocessor.normalize_features(features, method='minmax')
+                return self.preprocessor.normalize_features(features, method="minmax")
 
         return None
 
@@ -142,19 +147,19 @@ class PreprocessingService:
         for key, flow in self.flow_tracker.flows.items():
             if flow.flow_id == flow_id:
                 return {
-                    'flow_id': flow.flow_id,
-                    'src_ip': flow.src_ip,
-                    'dst_ip': flow.dst_ip,
-                    'src_port': flow.src_port,
-                    'dst_port': flow.dst_port,
-                    'protocol': flow.protocol,
-                    'start_time': datetime.fromtimestamp(flow.start_time).isoformat(),
-                    'last_seen': datetime.fromtimestamp(flow.last_seen).isoformat(),
-                    'duration': flow.last_seen - flow.start_time,
-                    'fwd_packets': len(flow.fwd_packets),
-                    'bwd_packets': len(flow.bwd_packets),
-                    'total_packets': len(flow.fwd_packets) + len(flow.bwd_packets),
-                    'features': flow.compute_all_features()
+                    "flow_id": flow.flow_id,
+                    "src_ip": flow.src_ip,
+                    "dst_ip": flow.dst_ip,
+                    "src_port": flow.src_port,
+                    "dst_port": flow.dst_port,
+                    "protocol": flow.protocol,
+                    "start_time": datetime.fromtimestamp(flow.start_time).isoformat(),
+                    "last_seen": datetime.fromtimestamp(flow.last_seen).isoformat(),
+                    "duration": flow.last_seen - flow.start_time,
+                    "fwd_packets": len(flow.fwd_packets),
+                    "bwd_packets": len(flow.bwd_packets),
+                    "total_packets": len(flow.fwd_packets) + len(flow.bwd_packets),
+                    "features": flow.compute_all_features(),
                 }
 
         return None
@@ -169,16 +174,18 @@ class PreprocessingService:
         flows = []
 
         for flow in self.flow_tracker.get_all_flows():
-            flows.append({
-                'flow_id': flow.flow_id,
-                'src_ip': flow.src_ip,
-                'dst_ip': flow.dst_ip,
-                'src_port': flow.src_port,
-                'dst_port': flow.dst_port,
-                'protocol': flow.protocol,
-                'duration': flow.last_seen - flow.start_time,
-                'packet_count': len(flow.fwd_packets) + len(flow.bwd_packets)
-            })
+            flows.append(
+                {
+                    "flow_id": flow.flow_id,
+                    "src_ip": flow.src_ip,
+                    "dst_ip": flow.dst_ip,
+                    "src_port": flow.src_port,
+                    "dst_port": flow.dst_port,
+                    "protocol": flow.protocol,
+                    "duration": flow.last_seen - flow.start_time,
+                    "packet_count": len(flow.fwd_packets) + len(flow.bwd_packets),
+                }
+            )
 
         return flows
 
@@ -191,9 +198,9 @@ class PreprocessingService:
         """
         return {
             **self.stats,
-            'active_flows': self.flow_tracker.get_flow_count(),
-            'max_flows': self.flow_tracker.max_flows,
-            'flow_timeout': self.flow_tracker.flow_timeout
+            "active_flows": self.flow_tracker.get_flow_count(),
+            "max_flows": self.flow_tracker.max_flows,
+            "flow_timeout": self.flow_tracker.flow_timeout,
         }
 
     def cleanup_old_flows(self):
@@ -203,10 +210,10 @@ class PreprocessingService:
     def reset_statistics(self):
         """Reset statistics counters"""
         self.stats = {
-            'packets_processed': 0,
-            'flows_created': 0,
-            'features_extracted': 0,
-            'errors': 0
+            "packets_processed": 0,
+            "flows_created": 0,
+            "features_extracted": 0,
+            "errors": 0,
         }
 
     def _store_packet(self, packet_info: Dict[str, Any]):
@@ -222,23 +229,23 @@ class PreprocessingService:
 
             # Prepare document
             doc = {
-                'timestamp': datetime.fromtimestamp(packet_info['timestamp']),
-                'source': packet_info['source'],
-                'destination': packet_info['destination'],
-                'protocol': packet_info.get('protocol_name', 'UNKNOWN'),
-                'src_port': packet_info.get('src_port', 0),
-                'dst_port': packet_info.get('dst_port', 0),
-                'size': packet_info['size'],
-                'tcp_flags': packet_info.get('flags', {}),
-                'flow_id': packet_info.get('flow_id', ''),
-                'payload_size': packet_info.get('payload_size', 0),
-                'is_threat': packet_info.get('is_threat', False),
-                'preprocessed': True
+                "timestamp": datetime.fromtimestamp(packet_info["timestamp"]),
+                "source": packet_info["source"],
+                "destination": packet_info["destination"],
+                "protocol": packet_info.get("protocol_name", "UNKNOWN"),
+                "src_port": packet_info.get("src_port", 0),
+                "dst_port": packet_info.get("dst_port", 0),
+                "size": packet_info["size"],
+                "tcp_flags": packet_info.get("flags", {}),
+                "flow_id": packet_info.get("flow_id", ""),
+                "payload_size": packet_info.get("payload_size", 0),
+                "is_threat": packet_info.get("is_threat", False),
+                "preprocessed": True,
             }
 
             # Add features if available
-            if 'features' in packet_info:
-                doc['features'] = packet_info['features']
+            if "features" in packet_info:
+                doc["features"] = packet_info["features"]
 
             # Insert into packets collection
             self.db.packets.insert_one(doc)
@@ -260,31 +267,31 @@ class PreprocessingService:
             features = flow.compute_all_features()
 
             doc = {
-                'flow_id': flow.flow_id,
-                'source': flow.src_ip,
-                'destination': flow.dst_ip,
-                'src_port': flow.src_port,
-                'dst_port': flow.dst_port,
-                'protocol': flow.protocol,
-                'start_time': datetime.fromtimestamp(flow.start_time),
-                'last_seen': datetime.fromtimestamp(flow.last_seen),
-                'duration': flow.last_seen - flow.start_time,
-                'packet_count': len(flow.fwd_packets) + len(flow.bwd_packets),
-                'total_bytes': int(features.get('Total Length of Fwd Packets', 0) +
-                                  features.get('Total Length of Bwd Packets', 0)),
-                'forward_packets': len(flow.fwd_packets),
-                'backward_packets': len(flow.bwd_packets),
-                'forward_bytes': int(features.get('Total Length of Fwd Packets', 0)),
-                'backward_bytes': int(features.get('Total Length of Bwd Packets', 0)),
-                'features': features,
-                'status': 'active'
+                "flow_id": flow.flow_id,
+                "source": flow.src_ip,
+                "destination": flow.dst_ip,
+                "src_port": flow.src_port,
+                "dst_port": flow.dst_port,
+                "protocol": flow.protocol,
+                "start_time": datetime.fromtimestamp(flow.start_time),
+                "last_seen": datetime.fromtimestamp(flow.last_seen),
+                "duration": flow.last_seen - flow.start_time,
+                "packet_count": len(flow.fwd_packets) + len(flow.bwd_packets),
+                "total_bytes": int(
+                    features.get("Total Length of Fwd Packets", 0)
+                    + features.get("Total Length of Bwd Packets", 0)
+                ),
+                "forward_packets": len(flow.fwd_packets),
+                "backward_packets": len(flow.bwd_packets),
+                "forward_bytes": int(features.get("Total Length of Fwd Packets", 0)),
+                "backward_bytes": int(features.get("Total Length of Bwd Packets", 0)),
+                "features": features,
+                "status": "active",
             }
 
             # Upsert flow (update if exists, insert if not)
             self.db.flows.update_one(
-                {'flow_id': flow.flow_id},
-                {'$set': doc},
-                upsert=True
+                {"flow_id": flow.flow_id}, {"$set": doc}, upsert=True
             )
 
         except Exception as e:
@@ -303,7 +310,9 @@ class PreprocessingService:
         logger.info(f"Stored {stored_count} flows in database")
 
 
-def create_preprocessing_service(db=None, config: Dict[str, Any] = None) -> PreprocessingService:
+def create_preprocessing_service(
+    db=None, config: Dict[str, Any] = None
+) -> PreprocessingService:
     """
     Factory function to create preprocessing service
 
@@ -317,11 +326,7 @@ def create_preprocessing_service(db=None, config: Dict[str, Any] = None) -> Prep
     if config is None:
         config = {}
 
-    flow_timeout = config.get('flow_timeout', 120)
-    max_flows = config.get('max_flows', 10000)
+    flow_timeout = config.get("flow_timeout", 120)
+    max_flows = config.get("max_flows", 10000)
 
-    return PreprocessingService(
-        db=db,
-        flow_timeout=flow_timeout,
-        max_flows=max_flows
-    )
+    return PreprocessingService(db=db, flow_timeout=flow_timeout, max_flows=max_flows)
