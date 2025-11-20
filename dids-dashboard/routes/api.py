@@ -130,7 +130,6 @@ def init_api_routes(app, packet_service, threat_service, ai_service=None):
         return jsonify(
             {
                 "active": packet_service.get_capture_status(),
-                "demo_mode": packet_service.is_demo_mode(),
                 "flow_count": packet_service.get_flow_count(),
             }
         )

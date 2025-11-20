@@ -1,6 +1,5 @@
 import logging
 import platform
-import random
 import time
 from collections import defaultdict
 from datetime import datetime
@@ -37,8 +36,6 @@ class PacketCaptureService:
         }
         self.capture_event = Event()
         self.capture_active = True
-        self.demo_mode = False
-        self.demo_thread = None
 
         # Flow tracker for AI detection
         if self.ai_service and self.ai_service.is_ready():
@@ -421,91 +418,6 @@ class PacketCaptureService:
             if len(self.traffic_data) > self.max_traffic_size:
                 self.traffic_data.pop(0)
 
-    def generate_demo_packet(self) -> Dict[str, Any]:
-        """Generate a simulated packet for demo mode with realistic attack scenarios"""
-        protocols = ["TCP", "UDP", "HTTP", "HTTPS", "DNS", "SSH"]
-        sources = [
-            "192.168.1.100",
-            "192.168.1.101",
-            "192.168.1.102",
-            "10.0.0.5",
-            "172.16.0.10",
-            "8.8.8.8",
-            "1.1.1.1",
-        ]
-        destinations = [
-            "192.168.1.1",
-            "8.8.8.8",
-            "1.1.1.1",
-            "172.217.16.142",
-            "151.101.1.140",
-            "13.107.42.14",
-        ]
-
-        protocol = random.choice(protocols)
-        src = random.choice(sources)
-        dst = random.choice(destinations)
-        size = random.randint(64, 1500)
-
-        # Occasionally generate threats for demonstration
-        threat = random.random() < 0.08  # 8% chance of threat
-        ai_detection_type = None
-        ai_confidence = None
-
-        if threat:
-            # Mix of signature and AI detections
-            if random.random() < 0.5 and self.threat_service:
-                # Signature-based threat
-                threat_types = [
-                    "ET SCAN Aggressive Port Scan",
-                    "ET WEB SQL Injection Attempt",
-                    "ET DNS Excessive Queries",
-                ]
-                signature = random.choice(threat_types)
-                self.threat_service.log_threat(
-                    signature, src, dst, {"protocol": protocol}
-                )
-                self.stats["threats_blocked"] += 1
-
-            else:
-                # AI-based threat (for demo)
-                attack_types = ["DDoS", "PortScan", "Bot", "Web Attack", "Brute Force"]
-                ai_detection_type = random.choice(attack_types)
-                ai_confidence = random.uniform(75, 99)
-                self.stats["ai_detections"] += 1
-
-        # Update statistics
-        self.stats["total_packets"] += 1
-        self.stats["protocol_dist"][protocol] += 1
-        self.stats["top_talkers"][src] += size
-
-        return {
-            "timestamp": datetime.now().strftime("%H:%M:%S.%f")[:-3],
-            "source": src,
-            "destination": dst,
-            "protocol": protocol,
-            "size": size,
-            "threat": threat,
-            "ai_detection": ai_detection_type,
-            "ai_confidence": ai_confidence,
-            "signature_detection": None,
-        }
-
-    def run_demo_mode(self) -> None:
-        """Run demo mode with simulated packets"""
-        logger.info("Running in DEMO MODE - generating simulated traffic")
-        self.demo_mode = True
-
-        while not self.capture_event.is_set() and self.demo_mode:
-            # Generate 1-5 packets per iteration
-            num_packets = random.randint(1, 5)
-            for _ in range(num_packets):
-                packet = self.generate_demo_packet()
-                self.store_packet(packet)
-
-            # Sleep for a bit to simulate realistic traffic
-            time.sleep(random.uniform(0.1, 0.5))
-
     def capture_packets(self) -> None:
         """Start packet capture on the active interface"""
         interface = self.get_active_interface()
@@ -533,11 +445,8 @@ class PacketCaptureService:
 
         except PermissionError as e:
             logger.error(f"Permission denied for packet capture: {e}")
-            logger.info(
-                "Switching to DEMO MODE - please run with elevated privileges for real capture"
-            )
-            logger.info("On Windows: Run as Administrator | On Linux/Mac: Use sudo")
-            self.run_demo_mode()
+            logger.error("Please run with elevated privileges for packet capture")
+            logger.error("On Windows: Run as Administrator | On Linux/Mac: Use sudo")
 
         except OSError as e:
             error_msg = str(e)
@@ -545,22 +454,17 @@ class PacketCaptureService:
                 logger.error(
                     f"Packet capture error: Interface '{interface}' not found!"
                 )
-                logger.info(f"Available interfaces: {get_if_list()}")
+                logger.error(f"Available interfaces: {get_if_list()}")
             else:
                 logger.error(f"OS error during packet capture: {e}")
-            logger.info("Switching to DEMO MODE - unable to capture real packets")
-            self.run_demo_mode()
 
         except Exception as e:
             logger.error(f"Packet capture error: {e}")
-            logger.info("Switching to DEMO MODE - unable to capture real packets")
-            self.run_demo_mode()
 
     def stop_capture(self) -> None:
         """Stop packet capture"""
         self.capture_event.set()
         self.capture_active = False
-        self.demo_mode = False
         logger.info("Packet capture stopped")
 
     def toggle_capture(self) -> bool:
@@ -574,10 +478,9 @@ class PacketCaptureService:
 
         if not self.capture_active:
             self.capture_event.set()
-            self.demo_mode = False
         else:
             self.capture_event.clear()
-            # Start a new capture thread - try real capture first, falls back to demo if needed
+            # Start a new capture thread
             capture_thread = Thread(target=self.capture_packets, daemon=True)
             capture_thread.start()
 
@@ -617,10 +520,6 @@ class PacketCaptureService:
     def get_capture_status(self) -> bool:
         """Get current capture status"""
         return self.capture_active
-
-    def is_demo_mode(self) -> bool:
-        """Check if running in demo mode"""
-        return self.demo_mode
 
     def get_flow_count(self) -> int:
         """Get number of tracked flows"""

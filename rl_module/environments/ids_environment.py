@@ -93,7 +93,6 @@ class IDSEnvironment(gym.Env):
         # Current state
         self.current_observation = None
         self.current_label = None
-        self.current_attack_prob = 0.0
 
         # Load data if provided
         if X is not None and y is not None:
@@ -139,22 +138,7 @@ class IDSEnvironment(gym.Env):
             )
             self.current_label = np.random.choice([0, 1])
 
-        # Simulate attack probability (in real scenario, this comes from ML model)
-        self.current_attack_prob = self._simulate_attack_probability()
-
         return self.current_observation
-
-    def _simulate_attack_probability(self) -> float:
-        """
-        Simulate attack probability based on label
-        For training with labeled data
-        """
-        if self.current_label == 0:
-            # Benign traffic: low attack probability with some noise
-            return np.random.uniform(0.0, 0.3)
-        else:
-            # Attack traffic: high attack probability with some noise
-            return np.random.uniform(0.6, 1.0)
 
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, Dict[str, Any]]:
         """
@@ -172,9 +156,7 @@ class IDSEnvironment(gym.Env):
         self.current_step += 1
 
         # Calculate reward based on action and true label
-        reward = self._calculate_reward(
-            action, self.current_label, self.current_attack_prob
-        )
+        reward = self._calculate_reward(action, self.current_label)
 
         # Update metrics
         self._update_metrics(action, self.current_label)
@@ -191,12 +173,10 @@ class IDSEnvironment(gym.Env):
             idx = np.random.randint(0, len(self.data_buffer))
             self.current_observation = np.array(self.data_buffer[idx], dtype=np.float32)
             self.current_label = self.label_buffer[idx]
-            self.current_attack_prob = self._simulate_attack_probability()
 
         # Prepare info dict
         info = {
             "true_label": self.current_label,
-            "attack_probability": self.current_attack_prob,
             "action_taken": action,
             "step": self.current_step,
             "episode_reward": sum(self.episode_rewards),
@@ -208,16 +188,13 @@ class IDSEnvironment(gym.Env):
 
         return self.current_observation, reward, done, info
 
-    def _calculate_reward(
-        self, action: int, true_label: int, attack_prob: float
-    ) -> float:
+    def _calculate_reward(self, action: int, true_label: int) -> float:
         """
         Calculate reward based on action and ground truth
 
         Args:
             action: Action taken (0=Allow, 1=Alert, 2=Block)
             true_label: True label (0=Benign, >0=Attack)
-            attack_prob: Estimated attack probability
 
         Returns:
             Reward value
@@ -236,11 +213,8 @@ class IDSEnvironment(gym.Env):
             if is_attack:
                 # Correctly alerted on attack - MEDIUM REWARD
                 reward = 5.0
-            elif attack_prob > 0.4:
-                # Alert on suspicious traffic - SMALL REWARD
-                reward = 2.0
             else:
-                # Alert on clearly benign traffic - SMALL PENALTY
+                # Alert on benign traffic - SMALL PENALTY
                 reward = -3.0
 
         else:  # action == 0: Allow
