@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
 IDS Reinforcement Learning Environment
-Custom OpenAI Gym environment for network intrusion detection
+Custom Gymnasium environment for network intrusion detection
 """
 
-import gym
-from gym import spaces
-import numpy as np
-from typing import Dict, Tuple, Any, Optional
 import logging
 from collections import deque
+from typing import Any, Dict, Optional, Tuple
+
+import gymnasium as gym
+import numpy as np
+from gymnasium import spaces
 
 logger = logging.getLogger(__name__)
 
@@ -33,35 +34,43 @@ class IDSEnvironment(gym.Env):
         -5: Incorrect alert
     """
 
-    metadata = {'render.modes': ['human', 'console']}
+    metadata = {"render.modes": ["human", "console"]}
 
-    def __init__(self,
-                 n_features: int = 77,
-                 attack_threshold: float = 0.7,
-                 max_steps: int = 1000):
+    def __init__(
+        self,
+        X: Optional[np.ndarray] = None,
+        y: Optional[np.ndarray] = None,
+        n_features: int = 77,
+        attack_threshold: float = 0.7,
+        max_steps: int = 1000,
+    ):
         """
         Initialize IDS environment
 
         Args:
-            n_features: Number of network flow features
+            X: Optional feature matrix (n_samples, n_features) for training data
+            y: Optional labels (n_samples,) - 0 for benign, >0 for attacks
+            n_features: Number of network flow features (inferred from X if provided)
             attack_threshold: Threshold for considering traffic as attack
             max_steps: Maximum steps per episode
         """
         super(IDSEnvironment, self).__init__()
 
+        # Infer n_features from data if provided
+        if X is not None:
+            n_features = X.shape[1] if len(X.shape) > 1 else n_features
+
         self.n_features = n_features
         self.attack_threshold = attack_threshold
         self.max_steps = max_steps
+        self.n_actions = 3  # Allow, Alert, Block
 
         # Action space: 0=Allow, 1=Alert, 2=Block
         self.action_space = spaces.Discrete(3)
 
         # Observation space: Normalized network features
         self.observation_space = spaces.Box(
-            low=-5.0,
-            high=5.0,
-            shape=(n_features,),
-            dtype=np.float32
+            low=-5.0, high=5.0, shape=(int(n_features),), dtype=np.float32
         )
 
         # Episode tracking
@@ -84,7 +93,10 @@ class IDSEnvironment(gym.Env):
         # Current state
         self.current_observation = None
         self.current_label = None
-        self.current_attack_prob = 0.0
+
+        # Load data if provided
+        if X is not None and y is not None:
+            self.load_data(X, y)
 
         logger.info(f"Initialized IDS Environment with {n_features} features")
 
@@ -121,25 +133,12 @@ class IDSEnvironment(gym.Env):
             self.current_label = self.label_buffer[idx]
         else:
             # Generate random observation if no data loaded
-            self.current_observation = np.random.randn(self.n_features).astype(np.float32)
+            self.current_observation = np.random.randn(self.n_features).astype(
+                np.float32
+            )
             self.current_label = np.random.choice([0, 1])
 
-        # Simulate attack probability (in real scenario, this comes from ML model)
-        self.current_attack_prob = self._simulate_attack_probability()
-
         return self.current_observation
-
-    def _simulate_attack_probability(self) -> float:
-        """
-        Simulate attack probability based on label
-        For training with labeled data
-        """
-        if self.current_label == 0:
-            # Benign traffic: low attack probability with some noise
-            return np.random.uniform(0.0, 0.3)
-        else:
-            # Attack traffic: high attack probability with some noise
-            return np.random.uniform(0.6, 1.0)
 
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, Dict[str, Any]]:
         """
@@ -157,7 +156,7 @@ class IDSEnvironment(gym.Env):
         self.current_step += 1
 
         # Calculate reward based on action and true label
-        reward = self._calculate_reward(action, self.current_label, self.current_attack_prob)
+        reward = self._calculate_reward(action, self.current_label)
 
         # Update metrics
         self._update_metrics(action, self.current_label)
@@ -174,31 +173,28 @@ class IDSEnvironment(gym.Env):
             idx = np.random.randint(0, len(self.data_buffer))
             self.current_observation = np.array(self.data_buffer[idx], dtype=np.float32)
             self.current_label = self.label_buffer[idx]
-            self.current_attack_prob = self._simulate_attack_probability()
 
         # Prepare info dict
         info = {
-            'true_label': self.current_label,
-            'attack_probability': self.current_attack_prob,
-            'action_taken': action,
-            'step': self.current_step,
-            'episode_reward': sum(self.episode_rewards),
-            'accuracy': self._calculate_accuracy(),
-            'precision': self._calculate_precision(),
-            'recall': self._calculate_recall(),
-            'f1_score': self._calculate_f1()
+            "true_label": self.current_label,
+            "action_taken": action,
+            "step": self.current_step,
+            "episode_reward": sum(self.episode_rewards),
+            "accuracy": self._calculate_accuracy(),
+            "precision": self._calculate_precision(),
+            "recall": self._calculate_recall(),
+            "f1_score": self._calculate_f1(),
         }
 
         return self.current_observation, reward, done, info
 
-    def _calculate_reward(self, action: int, true_label: int, attack_prob: float) -> float:
+    def _calculate_reward(self, action: int, true_label: int) -> float:
         """
         Calculate reward based on action and ground truth
 
         Args:
             action: Action taken (0=Allow, 1=Alert, 2=Block)
             true_label: True label (0=Benign, >0=Attack)
-            attack_prob: Estimated attack probability
 
         Returns:
             Reward value
@@ -217,11 +213,8 @@ class IDSEnvironment(gym.Env):
             if is_attack:
                 # Correctly alerted on attack - MEDIUM REWARD
                 reward = 5.0
-            elif attack_prob > 0.4:
-                # Alert on suspicious traffic - SMALL REWARD
-                reward = 2.0
             else:
-                # Alert on clearly benign traffic - SMALL PENALTY
+                # Alert on benign traffic - SMALL PENALTY
                 reward = -3.0
 
         else:  # action == 0: Allow
@@ -260,7 +253,12 @@ class IDSEnvironment(gym.Env):
 
     def _calculate_accuracy(self) -> float:
         """Calculate current accuracy"""
-        total = self.true_positives + self.false_positives + self.true_negatives + self.false_negatives
+        total = (
+            self.true_positives
+            + self.false_positives
+            + self.true_negatives
+            + self.false_negatives
+        )
         if total == 0:
             return 0.0
         return (self.true_positives + self.true_negatives) / total
@@ -285,9 +283,9 @@ class IDSEnvironment(gym.Env):
             return 0.0
         return 2 * (precision * recall) / (precision + recall)
 
-    def render(self, mode='human'):
+    def render(self, mode="human"):
         """Render the environment"""
-        if mode == 'human' or mode == 'console':
+        if mode == "human" or mode == "console":
             print(f"\n{'='*60}")
             print(f"Step: {self.current_step}/{self.max_steps}")
             print(f"Episode Reward: {sum(self.episode_rewards):.2f}")
@@ -297,30 +295,34 @@ class IDSEnvironment(gym.Env):
             print(f"F1 Score: {self._calculate_f1():.3f}")
             print(f"TP: {self.true_positives}, FP: {self.false_positives}")
             print(f"TN: {self.true_negatives}, FN: {self.false_negatives}")
-            print(f"Alerts Correct: {self.alerts_correct}, Incorrect: {self.alerts_incorrect}")
+            print(
+                f"Alerts Correct: {self.alerts_correct}, Incorrect: {self.alerts_incorrect}"
+            )
             print(f"{'='*60}\n")
 
     def get_episode_stats(self) -> Dict[str, Any]:
         """Get episode statistics"""
         return {
-            'total_reward': sum(self.episode_rewards),
-            'average_reward': np.mean(self.episode_rewards) if self.episode_rewards else 0,
-            'steps': self.current_step,
-            'accuracy': self._calculate_accuracy(),
-            'precision': self._calculate_precision(),
-            'recall': self._calculate_recall(),
-            'f1_score': self._calculate_f1(),
-            'true_positives': self.true_positives,
-            'false_positives': self.false_positives,
-            'true_negatives': self.true_negatives,
-            'false_negatives': self.false_negatives,
-            'alerts_correct': self.alerts_correct,
-            'alerts_incorrect': self.alerts_incorrect,
-            'actions': {
-                'allow': self.episode_actions.count(0),
-                'alert': self.episode_actions.count(1),
-                'block': self.episode_actions.count(2)
-            }
+            "total_reward": sum(self.episode_rewards),
+            "average_reward": (
+                np.mean(self.episode_rewards) if self.episode_rewards else 0
+            ),
+            "steps": self.current_step,
+            "accuracy": self._calculate_accuracy(),
+            "precision": self._calculate_precision(),
+            "recall": self._calculate_recall(),
+            "f1_score": self._calculate_f1(),
+            "true_positives": self.true_positives,
+            "false_positives": self.false_positives,
+            "true_negatives": self.true_negatives,
+            "false_negatives": self.false_negatives,
+            "alerts_correct": self.alerts_correct,
+            "alerts_incorrect": self.alerts_incorrect,
+            "actions": {
+                "allow": self.episode_actions.count(0),
+                "alert": self.episode_actions.count(1),
+                "block": self.episode_actions.count(2),
+            },
         }
 
     def close(self):

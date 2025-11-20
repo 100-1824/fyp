@@ -2,14 +2,15 @@
 Shared data models for microservices communication
 """
 
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, asdict
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
 class PacketData:
     """Packet information"""
+
     timestamp: str
     source: str
     destination: str
@@ -35,6 +36,7 @@ class PacketData:
 @dataclass
 class ThreatDetection:
     """Threat detection result"""
+
     timestamp: str
     source: str
     destination: str
@@ -54,6 +56,7 @@ class ThreatDetection:
 @dataclass
 class AIDetectionResult:
     """AI detection result"""
+
     attack_type: str
     confidence: float
     severity: str
@@ -67,6 +70,7 @@ class AIDetectionResult:
 @dataclass
 class RLDecision:
     """RL agent decision"""
+
     action: str  # allow, alert, block
     confidence: float
     q_values: Dict[str, float]
@@ -80,6 +84,7 @@ class RLDecision:
 @dataclass
 class FlowFeatures:
     """Network flow features for ML"""
+
     flow_duration: float
     total_fwd_packets: int
     total_bwd_packets: int
@@ -94,6 +99,7 @@ class FlowFeatures:
 @dataclass
 class ServiceHealth:
     """Service health status"""
+
     service_name: str
     status: str  # healthy, degraded, unhealthy
     uptime: float
@@ -108,6 +114,7 @@ class ServiceHealth:
 @dataclass
 class Statistics:
     """System statistics"""
+
     total_packets: int
     total_threats: int
     threats_blocked: int
