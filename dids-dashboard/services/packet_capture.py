@@ -266,26 +266,52 @@ class PacketCaptureService:
         
         return record
     
-    def _check_signature_threats(self, pkt, packet_info: Dict[str, Any], 
+    def _check_signature_threats(self, pkt, packet_info: Dict[str, Any],
                                  src: str, dst: str) -> Optional[str]:
         """
         Check packet against signature-based threat detection.
-        
+
         Args:
             pkt: Scapy packet object
             packet_info: Extracted packet information
             src: Source IP address
             dst: Destination IP address
-            
+
         Returns:
             Threat signature name if detected, None otherwise
         """
         threat_signature = None
-        
+
         # Skip if whitelisted
         if self.threat_service.is_whitelisted(src) or self.threat_service.is_whitelisted(dst):
             return None
-        
+
+        # First, check Suricata/Snort rules if available
+        payload = None
+        if Raw in pkt:
+            payload = bytes(pkt[Raw].load)
+
+        rule_matches = self.threat_service.check_suricata_rules(packet_info, payload)
+        if rule_matches:
+            # Log the first matching rule as a threat
+            for match in rule_matches:
+                self.threat_service.log_threat(
+                    match['rule_msg'],
+                    src, dst,
+                    {
+                        'rule_sid': match['rule_sid'],
+                        'action': match['action'],
+                        'protocol': packet_info.get('protocol'),
+                        'classtype': match.get('classtype', 'unknown')
+                    }
+                )
+                self.stats['threats_blocked'] += 1
+
+                # Return first high/critical severity match
+                if match['severity'] in ['critical', 'high']:
+                    if not threat_signature:
+                        threat_signature = match['rule_msg']
+
         # Check TCP packets
         if TCP in pkt:
             dst_port = pkt[TCP].dport

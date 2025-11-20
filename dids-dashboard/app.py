@@ -14,6 +14,8 @@ from models import User, Admin
 
 # Import services
 from services import PacketCaptureService, ThreatDetectionService, UserService, AIDetectionService
+from services.rule_parser import RuleManager
+from services.rule_engine import RuleEngine
 
 # Import routes
 from routes import (
@@ -77,10 +79,34 @@ def create_app(config_name='default'):
     app.logger.info("=" * 70)
     app.logger.info("🚀 Initializing DIDS Services")
     app.logger.info("=" * 70)
-    
-    # 1. Initialize threat detection service
+
+    # 0. Initialize Suricata/Snort rule engine
+    app.logger.info("0️⃣  Initializing Suricata/Snort Rule Engine...")
+    try:
+        rule_manager = RuleManager(db=mongo.db)
+        rule_engine = RuleEngine(rule_manager)
+
+        # Load default rules
+        default_rules_path = os.path.join(os.path.dirname(__file__), 'rules', 'default.rules')
+        if os.path.exists(default_rules_path):
+            rules_loaded = rule_manager.load_rules_from_file(default_rules_path)
+            app.logger.info(f"✓ Suricata/Snort rule engine initialized with {rules_loaded} rules")
+
+            # Show rule statistics
+            stats = rule_manager.get_statistics()
+            app.logger.info(f"   📋 Rules by severity: {stats.get('by_severity', {})}")
+            app.logger.info(f"   🔧 Rules by protocol: {stats.get('by_protocol', {})}")
+        else:
+            app.logger.warning(f"⚠️  Default rules file not found at {default_rules_path}")
+            rules_loaded = 0
+    except Exception as e:
+        app.logger.error(f"⚠️  Failed to initialize rule engine: {e}")
+        rule_manager = None
+        rule_engine = None
+
+    # 1. Initialize threat detection service (with rule engine)
     app.logger.info("1️⃣  Initializing Signature-Based Threat Detection...")
-    threat_service = ThreatDetectionService(app.config)
+    threat_service = ThreatDetectionService(app.config, rule_engine=rule_engine)
     app.logger.info("✓ Signature-based threat detection ready")
     
     # 2. Initialize AI detection service
@@ -116,6 +142,8 @@ def create_app(config_name='default'):
     app.threat_service = threat_service
     app.ai_service = ai_service
     app.user_service = user_service
+    app.rule_manager = rule_manager
+    app.rule_engine = rule_engine
     
     # Register blueprints
     auth_bp = init_auth_routes(app, mongo, bcrypt, user_service)
@@ -131,6 +159,11 @@ def create_app(config_name='default'):
     # Register dashboard API
     init_dashboard_api(app)
     app.logger.info("✓ Dashboard API registered at /api/v1")
+
+    # Register rules API
+    from api.rules import rules_api
+    app.register_blueprint(rules_api)
+    app.logger.info("✓ Rules API registered at /api/v1/rules")
     
     # Start packet capture in background thread
     if not app.config.get('TESTING'):
