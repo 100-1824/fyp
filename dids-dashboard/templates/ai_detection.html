@@ -1302,9 +1302,10 @@
 
         // Update threshold
         async function updateThreshold() {
-            const threshold = parseFloat(document.getElementById('threshold-input').value);
+            const thresholdInput = document.getElementById('threshold-input');
+            const threshold = parseFloat(thresholdInput.value);
 
-            if (threshold < 0 || threshold > 1) {
+            if (isNaN(threshold) || threshold < 0 || threshold > 1) {
                 toast.warning('Threshold must be between 0.0 and 1.0');
                 return;
             }
@@ -1313,12 +1314,31 @@
                 loading.show('Updating confidence threshold...');
                 const response = await fetch('/api/ai-threshold', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ threshold: threshold })
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ threshold: threshold }),
+                    credentials: 'same-origin'
                 });
 
-                const data = await response.json();
                 loading.hide();
+
+                // Check if redirected to login
+                if (response.redirected || response.status === 302) {
+                    toast.error('Session expired. Please login again.');
+                    window.location.href = '/login';
+                    return;
+                }
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    toast.error('Failed to update threshold: ' + (response.status === 400 ? 'Invalid value' : 'Server error'));
+                    console.error('Server response:', errorText);
+                    return;
+                }
+
+                const data = await response.json();
 
                 if (data.success) {
                     document.getElementById('current-threshold').textContent = (threshold * 100).toFixed(0) + '%';
@@ -1330,7 +1350,7 @@
             } catch(e) {
                 console.error('Error updating threshold:', e);
                 loading.hide();
-                toast.error('Failed to update threshold');
+                toast.error('Failed to update threshold: ' + e.message);
             }
         }
 
