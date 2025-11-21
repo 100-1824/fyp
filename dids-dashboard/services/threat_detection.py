@@ -4,6 +4,8 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from .threat_intelligence import ThreatIntelligenceService
+
 logger = logging.getLogger(__name__)
 
 
@@ -14,6 +16,9 @@ class ThreatDetectionService:
         self.config = config
         self.signature_detections = []
         self.rule_engine = rule_engine  # Suricata/Snort rule engine
+
+        # Initialize threat intelligence service
+        self.threat_intel = ThreatIntelligenceService(config)
 
         # Track scanning activity per IP
         self.scan_tracker = defaultdict(
@@ -540,3 +545,160 @@ class ThreatDetectionService:
             "whitelisted_ips": list(self.whitelisted_ips),
             "whitelisted_ports": list(self.whitelisted_ports),
         }
+
+    # =========================================================================
+    # Threat Intelligence Integration (IBM X-Force & AlienVault OTX)
+    # =========================================================================
+
+    def check_ip_threat_intel(self, ip: str) -> Dict[str, Any]:
+        """
+        Check IP against threat intelligence sources (IBM X-Force & AlienVault OTX).
+
+        Args:
+            ip: IP address to check
+
+        Returns:
+            Dictionary with threat intelligence results
+        """
+        try:
+            # Skip whitelisted and private IPs
+            if self.is_whitelisted(ip):
+                return {
+                    "ip": ip,
+                    "checked": False,
+                    "reason": "IP is whitelisted",
+                    "is_malicious": False,
+                }
+
+            # Check against threat intelligence
+            result = self.threat_intel.check_ip(ip)
+
+            # If malicious, log as threat
+            if result.get("is_malicious"):
+                self.log_threat(
+                    signature="ET THREAT_INTEL Known Malicious IP",
+                    src=ip,
+                    dst="N/A",
+                    additional_info={
+                        "risk_score": result.get("risk_score", 0),
+                        "categories": result.get("categories", []),
+                        "sources": [s.get("provider") for s in result.get("sources", [])],
+                        "detection_type": "threat_intelligence",
+                    },
+                )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error checking IP threat intelligence: {e}")
+            return {"ip": ip, "error": str(e), "is_malicious": False}
+
+    def check_url_threat_intel(self, url: str) -> Dict[str, Any]:
+        """
+        Check URL against threat intelligence sources.
+
+        Args:
+            url: URL to check
+
+        Returns:
+            Dictionary with threat intelligence results
+        """
+        try:
+            result = self.threat_intel.check_url(url)
+
+            if result.get("is_malicious"):
+                self.log_threat(
+                    signature="ET THREAT_INTEL Malicious URL",
+                    src="N/A",
+                    dst=url,
+                    additional_info={
+                        "risk_score": result.get("risk_score", 0),
+                        "categories": result.get("categories", []),
+                        "detection_type": "threat_intelligence",
+                    },
+                )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error checking URL threat intelligence: {e}")
+            return {"url": url, "error": str(e), "is_malicious": False}
+
+    def check_hash_threat_intel(self, file_hash: str) -> Dict[str, Any]:
+        """
+        Check file hash against threat intelligence sources.
+
+        Args:
+            file_hash: MD5, SHA1, or SHA256 hash
+
+        Returns:
+            Dictionary with malware information
+        """
+        try:
+            result = self.threat_intel.check_hash(file_hash)
+
+            if result.get("is_malicious"):
+                self.log_threat(
+                    signature="ET THREAT_INTEL Known Malware Hash",
+                    src="N/A",
+                    dst="N/A",
+                    additional_info={
+                        "file_hash": file_hash,
+                        "malware_families": result.get("malware_families", []),
+                        "detection_type": "threat_intelligence",
+                    },
+                )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error checking hash threat intelligence: {e}")
+            return {"hash": file_hash, "error": str(e), "is_malicious": False}
+
+    def is_known_malicious_ip(self, ip: str) -> bool:
+        """
+        Quick check if IP is in local malicious cache.
+
+        Args:
+            ip: IP address to check
+
+        Returns:
+            True if known malicious
+        """
+        return self.threat_intel.is_known_malicious(ip, "ip")
+
+    def bulk_check_ips_threat_intel(self, ips: List[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        Check multiple IPs against threat intelligence.
+
+        Args:
+            ips: List of IP addresses
+
+        Returns:
+            Dictionary mapping IPs to their reputation data
+        """
+        return self.threat_intel.bulk_check_ips(ips)
+
+    def get_threat_intel_statistics(self) -> Dict[str, Any]:
+        """Get threat intelligence service statistics."""
+        return self.threat_intel.get_statistics()
+
+    def get_threat_intel_indicators(self) -> Dict[str, List[str]]:
+        """Export all known malicious indicators from threat intelligence."""
+        return self.threat_intel.export_indicators()
+
+    def import_threat_intel_indicators(
+        self,
+        ips: List[str] = None,
+        domains: List[str] = None,
+        hashes: List[str] = None,
+    ):
+        """
+        Import indicators into threat intelligence local cache.
+
+        Args:
+            ips: List of malicious IPs
+            domains: List of malicious domains
+            hashes: List of malicious file hashes
+        """
+        self.threat_intel.import_indicators(ips=ips, domains=domains, hashes=hashes)

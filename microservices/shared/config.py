@@ -25,6 +25,9 @@ class Config:
     )
     AI_DETECTION_URL = os.environ.get("AI_DETECTION_URL", "http://ai-detection:5003")
     RL_DETECTION_URL = os.environ.get("RL_DETECTION_URL", "http://rl-detection:5004")
+    THREAT_INTEL_URL = os.environ.get(
+        "THREAT_INTEL_URL", "http://threat-intel:5005"
+    )
     API_GATEWAY_URL = os.environ.get("API_GATEWAY_URL", "http://api-gateway:5000")
 
     # Service ports
@@ -33,6 +36,15 @@ class Config:
     SIGNATURE_DETECTION_PORT = int(os.environ.get("SIGNATURE_DETECTION_PORT", 5002))
     AI_DETECTION_PORT = int(os.environ.get("AI_DETECTION_PORT", 5003))
     RL_DETECTION_PORT = int(os.environ.get("RL_DETECTION_PORT", 5004))
+    THREAT_INTEL_PORT = int(os.environ.get("THREAT_INTEL_PORT", 5005))
+
+    # Threat Intelligence API Configuration
+    # IBM X-Force Exchange API
+    XFORCE_API_KEY = os.environ.get("XFORCE_API_KEY", "")
+    XFORCE_API_PASSWORD = os.environ.get("XFORCE_API_PASSWORD", "")
+
+    # AlienVault OTX API
+    OTX_API_KEY = os.environ.get("OTX_API_KEY", "")
 
     # Logging
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
@@ -56,6 +68,9 @@ class Config:
     )
     ENABLE_SIGNATURE_DETECTION = (
         os.environ.get("ENABLE_SIGNATURE_DETECTION", "true").lower() == "true"
+    )
+    ENABLE_THREAT_INTEL = (
+        os.environ.get("ENABLE_THREAT_INTEL", "true").lower() == "true"
     )
 
 
