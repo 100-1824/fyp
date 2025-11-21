@@ -607,6 +607,115 @@ class AttackSimulator:
 
         return results
 
+    def run_continuous(self, interval: float = 2.0, burst_size: int = 5):
+        """
+        Run continuous attack simulation for AI/RL detection testing.
+        Generates diverse attack traffic at regular intervals.
+
+        Args:
+            interval: Time between attack bursts (seconds)
+            burst_size: Number of packets per burst
+        """
+        print("\n" + "=" * 60)
+        print("CONTINUOUS ATTACK SIMULATION MODE")
+        print("=" * 60)
+        print(f"[*] Interval: {interval}s | Burst size: {burst_size} packets")
+        print(f"[*] Press Ctrl+C to stop")
+        print("=" * 60)
+
+        attack_types = ["DDoS", "PortScan", "Bot", "Web Attack", "Brute Force", "Infiltration"]
+        cycle = 0
+
+        try:
+            while True:
+                cycle += 1
+                attack_type = attack_types[cycle % len(attack_types)]
+
+                print(f"\n[Cycle {cycle}] Generating {burst_size} {attack_type} packets...")
+
+                for i in range(burst_size):
+                    attacker_ip = self.generate_external_ip()
+                    target = "10.0.0." + str(random.randint(1, 254))
+
+                    # Generate attack-specific packet
+                    if attack_type == "DDoS":
+                        packet = self.generate_packet_data(
+                            src_ip=attacker_ip,
+                            dst_ip=target,
+                            protocol="TCP",
+                            dst_port=80,
+                            size=random.randint(64, 1500),
+                            tcp_flags={"syn": True, "ack": False, "fin": False, "rst": False, "psh": False}
+                        )
+                    elif attack_type == "PortScan":
+                        packet = self.generate_packet_data(
+                            src_ip=attacker_ip,
+                            dst_ip=target,
+                            protocol="TCP",
+                            dst_port=random.randint(1, 1024),
+                            size=60,
+                            tcp_flags={"syn": True, "ack": False, "fin": False, "rst": False, "psh": False}
+                        )
+                    elif attack_type == "Bot":
+                        c2_port = random.choice(self.c2_ports)
+                        packet = self.generate_packet_data(
+                            src_ip="10.0.0.100",  # Compromised internal host
+                            dst_ip=attacker_ip,  # C2 server
+                            protocol="TCP",
+                            dst_port=c2_port,
+                            size=random.randint(64, 256),
+                            payload=b"\x90\x90\x90" + bytes(random.randint(0, 255) for _ in range(20)),
+                            tcp_flags={"syn": False, "ack": True, "fin": False, "rst": False, "psh": True}
+                        )
+                    elif attack_type == "Web Attack":
+                        payload = random.choice(self.sql_injection_payloads + self.xss_payloads)
+                        packet = self.generate_packet_data(
+                            src_ip=attacker_ip,
+                            dst_ip=target,
+                            protocol="TCP",
+                            dst_port=80,
+                            size=len(payload) + 200,
+                            payload=payload,
+                            tcp_flags={"syn": False, "ack": True, "fin": False, "rst": False, "psh": True}
+                        )
+                    elif attack_type == "Brute Force":
+                        packet = self.generate_packet_data(
+                            src_ip=attacker_ip,
+                            dst_ip=target,
+                            protocol="TCP",
+                            dst_port=22,
+                            size=random.randint(100, 500),
+                            payload=b"SSH-2.0-attacker\r\n",
+                            tcp_flags={"syn": False, "ack": True, "fin": False, "rst": False, "psh": True}
+                        )
+                    else:  # Infiltration
+                        subdomain = ''.join(random.choices('abcdef0123456789', k=32))
+                        packet = self.generate_packet_data(
+                            src_ip=attacker_ip,
+                            dst_ip="8.8.8.8",
+                            protocol="UDP",
+                            dst_port=53,
+                            size=random.randint(64, 512),
+                            payload=f"{subdomain}.malware.example.com".encode()
+                        )
+
+                    packet["attack_type"] = attack_type
+                    packet["severity"] = random.choice(["medium", "high", "critical"])
+
+                    if self.mode == "injection":
+                        self.inject_packet(packet)
+
+                # Print status
+                print(f"    [+] Sent {burst_size} packets | Total: {self.stats['packets_generated']} | "
+                      f"Detections: {self.stats['detections_triggered']}")
+
+                time.sleep(interval)
+
+        except KeyboardInterrupt:
+            print("\n\n[!] Stopping continuous simulation...")
+            print(f"[*] Final stats: {self.stats['packets_generated']} packets, "
+                  f"{self.stats['detections_triggered']} detections")
+
     def get_summary(self) -> Dict:
         """Get simulation summary"""
         return {
@@ -715,10 +824,11 @@ def interactive_menu(simulator: AttackSimulator):
         print("7. DNS Tunneling")
         print("8. High Volume Mixed Traffic")
         print("9. Run ALL Simulations")
+        print("C. CONTINUOUS MODE (AI/RL Detection)")
         print("0. Exit")
         print("-" * 50)
 
-        choice = input("\nEnter choice (0-9): ").strip()
+        choice = input("\nEnter choice (0-9, C): ").strip().upper()
 
         if choice == "1":
             simulator.simulate_port_scan()
@@ -738,6 +848,13 @@ def interactive_menu(simulator: AttackSimulator):
             simulator.simulate_high_volume_traffic()
         elif choice == "9":
             simulator.run_all_simulations()
+        elif choice == "C":
+            try:
+                interval = float(input("Enter interval between bursts (seconds, default=2): ").strip() or "2")
+                burst_size = int(input("Enter packets per burst (default=5): ").strip() or "5")
+            except ValueError:
+                interval, burst_size = 2.0, 5
+            simulator.run_continuous(interval=interval, burst_size=burst_size)
         elif choice == "0":
             break
         else:
@@ -762,11 +879,14 @@ Examples:
   python ddos_simulator.py --attack ddos      # Run SYN flood only
   python ddos_simulator.py --network          # Network mode (actual traffic)
   python ddos_simulator.py --export output.json  # Export packets to file
+  python ddos_simulator.py --continuous       # Continuous mode (keeps generating traffic)
+  python ddos_simulator.py --continuous --interval 3  # Continuous with 3 second intervals
 
   # With authentication (sends to DIDS API):
   python ddos_simulator.py --user admin --password admin123 --all
   python ddos_simulator.py -u admin -p admin123 --attack ddos
   python ddos_simulator.py --url http://localhost:8000 -u admin -p admin123
+  python ddos_simulator.py -u admin -p admin123 --continuous  # Continuous with auth
         """
     )
 
@@ -783,6 +903,14 @@ Examples:
                        help="Export simulated packets to JSON file")
     parser.add_argument("--count", type=int, default=100,
                        help="Number of packets/attempts for the simulation")
+
+    # Continuous mode options
+    parser.add_argument("--continuous", "-c", action="store_true",
+                       help="Run in continuous mode (keeps generating traffic)")
+    parser.add_argument("--interval", type=float, default=2.0,
+                       help="Interval between attack bursts in continuous mode (default: 2.0 seconds)")
+    parser.add_argument("--burst-size", type=int, default=5,
+                       help="Number of packets per burst in continuous mode (default: 5)")
 
     # Authentication options
     parser.add_argument("-u", "--user", "--username", type=str, dest="username",
@@ -864,7 +992,13 @@ Examples:
             password=args.password
         )
 
-        if args.all:
+        if args.continuous:
+            # Run in continuous mode
+            simulator.run_continuous(
+                interval=args.interval,
+                burst_size=args.burst_size
+            )
+        elif args.all:
             results = simulator.run_all_simulations()
             print("\n" + "=" * 60)
             print("SIMULATION COMPLETE")

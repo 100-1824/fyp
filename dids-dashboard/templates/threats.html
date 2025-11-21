@@ -1624,11 +1624,26 @@
             try {
                 const data = await fetch('/api/combined-threats').then(r => r.json());
 
-                // On initial load, mark all existing threats as seen
+                // On initial load, show notifications for recent threats then mark all as seen
                 if (isInitialLoad) {
-                    data.forEach(threat => seenThreatIds.add(getThreatId(threat)));
                     isInitialLoad = false;
                     previousThreatCount = data.length;
+
+                    // Show notifications for the 3 most recent threats on initial load
+                    if (data.length > 0) {
+                        const recentThreats = data.slice(0, 3);
+                        recentThreats.forEach((threat, index) => {
+                            setTimeout(() => showThreatNotification(threat), index * 500);
+                        });
+                        if (data.length > 3) {
+                            setTimeout(() => {
+                                toast.info(`${data.length} total threats detected`);
+                            }, 2000);
+                        }
+                    }
+
+                    // Mark all as seen after showing initial notifications
+                    data.forEach(threat => seenThreatIds.add(getThreatId(threat)));
                 } else {
                     // Check for new threats (only after initial load)
                     if (data.length > 0) {
