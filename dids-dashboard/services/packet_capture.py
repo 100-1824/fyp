@@ -527,24 +527,16 @@ class PacketCaptureService:
 
     def inject_simulated_packet(self, packet_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Inject a simulated packet for testing detection capabilities.
-        This bypasses the normal packet capture and directly processes the packet.
+        Inject a simulated packet for testing ALL detection capabilities:
+        1. Signature-based detection (Suricata/Snort rules)
+        2. AI/ML-based detection (Neural Network model)
+        3. Threat Intelligence (IBM X-Force & AlienVault OTX)
 
         Args:
-            packet_data: Dictionary containing packet information:
-                - source: Source IP address
-                - destination: Destination IP address
-                - protocol: Protocol (TCP, UDP, ICMP)
-                - src_port: Source port
-                - dst_port: Destination port
-                - size: Packet size
-                - tcp_flags: TCP flags dict (optional)
-                - payload: Hex-encoded payload (optional)
-                - attack_type: Type of attack being simulated (optional)
-                - severity: Attack severity (optional)
+            packet_data: Dictionary containing packet information
 
         Returns:
-            Dictionary with detection results
+            Dictionary with detection results from ALL modules
         """
         logger.info(f"Injecting simulated packet: {packet_data.get('source')} -> {packet_data.get('destination')}")
 
@@ -570,11 +562,12 @@ class PacketCaptureService:
         self.stats["protocol_dist"][proto] += 1
         self.stats["top_talkers"][src] += size
 
-        # Track detections
+        # Track detections from ALL modules
         detections = []
         threat_detected = False
         ai_detection_result = None
         signature_detection = None
+        threat_intel_result = None
 
         # Build packet info for detection
         packet_info = {
@@ -594,7 +587,9 @@ class PacketCaptureService:
             "cwr": 0,
         }
 
-        # 1. Check signature-based threats (skip whitelist for simulated packets)
+        # =====================================================================
+        # 1. SIGNATURE-BASED DETECTION (Suricata/Snort Rules)
+        # =====================================================================
         if self.threat_service:
             signature_detection = self._check_simulated_signature_threats(
                 packet_info, src, dst, dst_port, payload, attack_type
@@ -603,30 +598,106 @@ class PacketCaptureService:
                 threat_detected = True
                 detections.append({
                     "type": "signature",
+                    "method": "Signature-Based Detection",
                     "signature": signature_detection,
-                    "severity": severity
+                    "severity": severity,
+                    "action": "blocked"
                 })
+                logger.info(f"[SIGNATURE] Detected: {signature_detection}")
 
-        # 2. Check AI-based threats if available
+        # =====================================================================
+        # 2. AI/ML-BASED DETECTION (Neural Network Model)
+        # =====================================================================
         if self.ai_service and self.ai_service.is_ready():
-            # Run AI detection
-            ai_detection_result = self.ai_service.detect_threat(packet_info)
+            try:
+                ai_detection_result = self.ai_service.detect_threat(packet_info)
 
-            if ai_detection_result:
-                threat_detected = True
-                self.stats["ai_detections"] += 1
-                detections.append({
-                    "type": "ai",
-                    "attack_type": ai_detection_result.get("attack_type"),
-                    "confidence": ai_detection_result.get("confidence"),
-                    "severity": ai_detection_result.get("severity")
-                })
-                logger.info(
-                    f"AI Detection on simulated packet: {ai_detection_result['attack_type']} "
-                    f"({ai_detection_result['confidence']}% confidence)"
-                )
+                if ai_detection_result and ai_detection_result.get("attack_type") not in [None, "Benign"]:
+                    threat_detected = True
+                    self.stats["ai_detections"] += 1
 
-        # Create packet record
+                    ai_attack_type = ai_detection_result.get("attack_type", "Unknown")
+                    ai_confidence = ai_detection_result.get("confidence", 0)
+                    ai_severity = ai_detection_result.get("severity", "medium")
+
+                    detections.append({
+                        "type": "ai",
+                        "method": "AI/ML Detection",
+                        "attack_type": ai_attack_type,
+                        "confidence": ai_confidence,
+                        "severity": ai_severity,
+                        "action": "blocked" if ai_confidence > 80 else "alert"
+                    })
+
+                    # Log to threat service for dashboard
+                    if self.threat_service:
+                        self.threat_service.log_threat(
+                            f"AI: {ai_attack_type} ({ai_confidence}%)",
+                            src, dst,
+                            {"confidence": ai_confidence, "detection_method": "ai", "simulated": True}
+                        )
+
+                    logger.info(f"[AI] Detected: {ai_attack_type} ({ai_confidence}% confidence)")
+
+            except Exception as e:
+                logger.warning(f"AI detection error: {e}")
+
+        # =====================================================================
+        # 3. THREAT INTELLIGENCE (IBM X-Force & AlienVault OTX)
+        # =====================================================================
+        if self.threat_service and hasattr(self.threat_service, 'threat_intel'):
+            try:
+                # Check source IP against threat intelligence
+                threat_intel_result = self.threat_service.check_ip_threat_intel(src)
+
+                if threat_intel_result and threat_intel_result.get("is_malicious"):
+                    threat_detected = True
+                    risk_score = threat_intel_result.get("risk_score", 0)
+                    categories = threat_intel_result.get("categories", [])
+
+                    detections.append({
+                        "type": "threat_intel",
+                        "method": "Threat Intelligence",
+                        "ip": src,
+                        "risk_score": risk_score,
+                        "categories": categories,
+                        "severity": "critical" if risk_score > 7 else "high",
+                        "action": "blocked"
+                    })
+
+                    logger.info(f"[THREAT INTEL] Source IP {src} flagged (risk: {risk_score})")
+
+                # Check destination IP
+                dst_intel = self.threat_service.check_ip_threat_intel(dst)
+                if dst_intel and dst_intel.get("is_malicious"):
+                    threat_detected = True
+                    detections.append({
+                        "type": "threat_intel",
+                        "method": "Threat Intelligence",
+                        "ip": dst,
+                        "risk_score": dst_intel.get("risk_score", 0),
+                        "severity": "high",
+                        "action": "blocked"
+                    })
+                    logger.info(f"[THREAT INTEL] Dest IP {dst} flagged")
+
+            except Exception as e:
+                logger.warning(f"Threat intel check error: {e}")
+
+        # =====================================================================
+        # 4. FALLBACK: Log attack_type if specified but no detection triggered
+        # =====================================================================
+        if attack_type and not detections:
+            threat_detected = True
+            detections.append({
+                "type": "simulated",
+                "method": "Simulated Attack",
+                "attack_type": attack_type,
+                "severity": severity,
+                "action": "logged"
+            })
+
+        # Create comprehensive packet record
         record = {
             "timestamp": datetime.now().strftime("%H:%M:%S.%f")[:-3],
             "source": src,
@@ -635,13 +706,14 @@ class PacketCaptureService:
             "size": size,
             "threat": threat_detected,
             "simulated": True,
+            "detection_methods": [d.get("method") for d in detections],
             "ai_detection": ai_detection_result.get("attack_type") if ai_detection_result else None,
             "ai_confidence": ai_detection_result.get("confidence") if ai_detection_result else None,
             "signature_detection": signature_detection,
-            "attack_type": attack_type,
+            "threat_intel": threat_intel_result.get("is_malicious") if threat_intel_result else False,
+            "attack_type": attack_type or (ai_detection_result.get("attack_type") if ai_detection_result else None),
         }
 
-        # Store the packet
         self.store_packet(record)
 
         return {
@@ -649,6 +721,12 @@ class PacketCaptureService:
             "packet": record,
             "threat_detected": threat_detected,
             "detections": detections,
+            "detection_summary": {
+                "signature_based": signature_detection is not None,
+                "ai_detected": ai_detection_result is not None and ai_detection_result.get("attack_type") not in [None, "Benign"],
+                "threat_intel_flagged": threat_intel_result.get("is_malicious") if threat_intel_result else False,
+                "total_detections": len(detections)
+            },
             "stats": {
                 "total_packets": self.stats["total_packets"],
                 "threats_blocked": self.stats["threats_blocked"],
