@@ -12,6 +12,9 @@ import requests
 from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
 
+# Import local threat intel service
+from services.threat_intel_service import get_threat_intel_service
+
 logger = logging.getLogger(__name__)
 
 # Create blueprint
@@ -457,7 +460,7 @@ def get_signatures():
         return jsonify({"error": str(e)}), 500
 
 
-# ==================== THREAT INTELLIGENCE ====================
+# ==================== THREAT INTELLIGENCE (Local Service) ====================
 
 
 @dashboard_api.route("/threat-intel/lookup/ip/<ip>", methods=["GET"])
@@ -465,14 +468,9 @@ def get_signatures():
 def lookup_ip_reputation(ip: str):
     """Look up IP reputation from threat intelligence sources (IBM X-Force & AlienVault OTX)"""
     try:
-        threat_intel_url = get_microservice_url("threat_intel")
-        response = requests.get(f"{threat_intel_url}/lookup/ip/{ip}", timeout=15)
-
-        if response.status_code == 200:
-            return jsonify(response.json()), 200
-        else:
-            return jsonify({"error": "Failed to lookup IP reputation"}), 503
-
+        service = get_threat_intel_service()
+        result = service.check_ip(ip)
+        return jsonify(result), 200
     except Exception as e:
         logger.error(f"Error looking up IP reputation: {e}")
         return jsonify({"error": str(e)}), 500
@@ -489,16 +487,9 @@ def lookup_url_reputation():
         if not url:
             return jsonify({"error": "URL required"}), 400
 
-        threat_intel_url = get_microservice_url("threat_intel")
-        response = requests.post(
-            f"{threat_intel_url}/lookup/url", json={"url": url}, timeout=15
-        )
-
-        if response.status_code == 200:
-            return jsonify(response.json()), 200
-        else:
-            return jsonify({"error": "Failed to lookup URL reputation"}), 503
-
+        service = get_threat_intel_service()
+        result = service.check_url(url)
+        return jsonify(result), 200
     except Exception as e:
         logger.error(f"Error looking up URL reputation: {e}")
         return jsonify({"error": str(e)}), 500
@@ -509,14 +500,11 @@ def lookup_url_reputation():
 def lookup_domain_reputation(domain: str):
     """Look up domain reputation from AlienVault OTX"""
     try:
-        threat_intel_url = get_microservice_url("threat_intel")
-        response = requests.get(f"{threat_intel_url}/lookup/domain/{domain}", timeout=15)
-
-        if response.status_code == 200:
-            return jsonify(response.json()), 200
-        else:
-            return jsonify({"error": "Failed to lookup domain reputation"}), 503
-
+        service = get_threat_intel_service()
+        result = service.check_domain(domain)
+        if "error" in result:
+            return jsonify(result), 503
+        return jsonify(result), 200
     except Exception as e:
         logger.error(f"Error looking up domain reputation: {e}")
         return jsonify({"error": str(e)}), 500
@@ -527,14 +515,9 @@ def lookup_domain_reputation(domain: str):
 def lookup_file_hash(file_hash: str):
     """Look up file hash from threat intelligence sources"""
     try:
-        threat_intel_url = get_microservice_url("threat_intel")
-        response = requests.get(f"{threat_intel_url}/lookup/hash/{file_hash}", timeout=15)
-
-        if response.status_code == 200:
-            return jsonify(response.json()), 200
-        else:
-            return jsonify({"error": "Failed to lookup file hash"}), 503
-
+        service = get_threat_intel_service()
+        result = service.check_hash(file_hash)
+        return jsonify(result), 200
     except Exception as e:
         logger.error(f"Error looking up file hash: {e}")
         return jsonify({"error": str(e)}), 500
@@ -554,16 +537,9 @@ def bulk_lookup_ips():
         if len(ips) > 100:
             return jsonify({"error": "Maximum 100 IPs per request"}), 400
 
-        threat_intel_url = get_microservice_url("threat_intel")
-        response = requests.post(
-            f"{threat_intel_url}/lookup/bulk/ips", json={"ips": ips}, timeout=60
-        )
-
-        if response.status_code == 200:
-            return jsonify(response.json()), 200
-        else:
-            return jsonify({"error": "Failed to perform bulk lookup"}), 503
-
+        service = get_threat_intel_service()
+        result = service.bulk_check_ips(ips)
+        return jsonify(result), 200
     except Exception as e:
         logger.error(f"Error performing bulk IP lookup: {e}")
         return jsonify({"error": str(e)}), 500
@@ -574,14 +550,9 @@ def bulk_lookup_ips():
 def quick_check_ip(ip: str):
     """Quick check if IP is in local malicious cache"""
     try:
-        threat_intel_url = get_microservice_url("threat_intel")
-        response = requests.get(f"{threat_intel_url}/check/quick/{ip}", timeout=5)
-
-        if response.status_code == 200:
-            return jsonify(response.json()), 200
-        else:
-            return jsonify({"error": "Failed to quick check IP"}), 503
-
+        service = get_threat_intel_service()
+        result = service.quick_check_ip(ip)
+        return jsonify(result), 200
     except Exception as e:
         logger.error(f"Error quick checking IP: {e}")
         return jsonify({"error": str(e)}), 500
@@ -593,16 +564,11 @@ def get_threat_pulses():
     """Get recent OTX threat intelligence pulses"""
     try:
         limit = request.args.get("limit", 10, type=int)
-        threat_intel_url = get_microservice_url("threat_intel")
-        response = requests.get(
-            f"{threat_intel_url}/pulses?limit={limit}", timeout=15
-        )
-
-        if response.status_code == 200:
-            return jsonify(response.json()), 200
-        else:
-            return jsonify({"error": "Failed to get threat pulses"}), 503
-
+        service = get_threat_intel_service()
+        result = service.get_pulses(limit)
+        if "error" in result:
+            return jsonify(result), 503
+        return jsonify(result), 200
     except Exception as e:
         logger.error(f"Error getting threat pulses: {e}")
         return jsonify({"error": str(e)}), 500
@@ -613,14 +579,9 @@ def get_threat_pulses():
 def get_threat_indicators():
     """Get all cached malicious indicators"""
     try:
-        threat_intel_url = get_microservice_url("threat_intel")
-        response = requests.get(f"{threat_intel_url}/indicators", timeout=10)
-
-        if response.status_code == 200:
-            return jsonify(response.json()), 200
-        else:
-            return jsonify({"error": "Failed to get indicators"}), 503
-
+        service = get_threat_intel_service()
+        result = service.get_indicators()
+        return jsonify(result), 200
     except Exception as e:
         logger.error(f"Error getting threat indicators: {e}")
         return jsonify({"error": str(e)}), 500
@@ -633,17 +594,13 @@ def import_threat_indicators():
     """Import threat indicators into local cache (admin only)"""
     try:
         data = request.get_json()
-
-        threat_intel_url = get_microservice_url("threat_intel")
-        response = requests.post(
-            f"{threat_intel_url}/indicators/import", json=data, timeout=10
+        service = get_threat_intel_service()
+        result = service.import_indicators(
+            ips=data.get("ips", []),
+            domains=data.get("domains", []),
+            hashes=data.get("hashes", [])
         )
-
-        if response.status_code == 200:
-            return jsonify(response.json()), 200
-        else:
-            return jsonify({"error": "Failed to import indicators"}), 503
-
+        return jsonify(result), 200
     except Exception as e:
         logger.error(f"Error importing indicators: {e}")
         return jsonify({"error": str(e)}), 500
@@ -654,14 +611,9 @@ def import_threat_indicators():
 def get_threat_intel_statistics():
     """Get threat intelligence service statistics"""
     try:
-        threat_intel_url = get_microservice_url("threat_intel")
-        response = requests.get(f"{threat_intel_url}/statistics", timeout=10)
-
-        if response.status_code == 200:
-            return jsonify(response.json()), 200
-        else:
-            return jsonify({"error": "Failed to get statistics"}), 503
-
+        service = get_threat_intel_service()
+        result = service.get_statistics()
+        return jsonify(result), 200
     except Exception as e:
         logger.error(f"Error getting threat intel statistics: {e}")
         return jsonify({"error": str(e)}), 500
@@ -672,23 +624,9 @@ def get_threat_intel_statistics():
 def get_threat_intel_health():
     """Get threat intelligence service health status"""
     try:
-        threat_intel_url = get_microservice_url("threat_intel")
-        response = requests.get(f"{threat_intel_url}/health", timeout=5)
-
-        if response.status_code == 200:
-            return jsonify(response.json()), 200
-        else:
-            return (
-                jsonify(
-                    {
-                        "service": "threat-intel",
-                        "status": "unhealthy",
-                        "error": "Service unavailable",
-                    }
-                ),
-                503,
-            )
-
+        service = get_threat_intel_service()
+        result = service.get_health()
+        return jsonify(result), 200
     except Exception as e:
         logger.error(f"Error checking threat intel health: {e}")
         return (

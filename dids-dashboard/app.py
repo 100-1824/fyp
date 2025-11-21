@@ -17,7 +17,8 @@ from routes import (init_admin_routes, init_api_routes, init_auth_routes,
                     init_main_routes)
 # Import services
 from services import (AIDetectionService, PacketCaptureService,
-                      ThreatDetectionService, UserService)
+                      ThreatDetectionService, UserService,
+                      init_threat_intel_service)
 from services.rule_engine import RuleEngine
 from services.rule_parser import RuleManager
 
@@ -137,6 +138,19 @@ def create_app(config_name="default"):
     # 4. Initialize user service
     user_service = UserService(mongo, bcrypt)
 
+    # 5. Initialize threat intelligence service (IBM X-Force & AlienVault OTX)
+    app.logger.info("5️⃣  Initializing Threat Intelligence Service...")
+    threat_intel_service = init_threat_intel_service(app)
+    health = threat_intel_service.get_health()
+    if health.get("xforce_configured") or health.get("otx_configured"):
+        app.logger.info("✓ Threat intelligence service initialized")
+        if health.get("xforce_configured"):
+            app.logger.info("   🔷 IBM X-Force Exchange: Connected")
+        if health.get("otx_configured"):
+            app.logger.info("   🔶 AlienVault OTX: Connected")
+    else:
+        app.logger.warning("⚠️  Threat intelligence APIs not configured")
+
     app.logger.info("=" * 70)
     app.logger.info("✅ All services initialized successfully")
     app.logger.info("=" * 70)
@@ -148,6 +162,7 @@ def create_app(config_name="default"):
     app.user_service = user_service
     app.rule_manager = rule_manager
     app.rule_engine = rule_engine
+    app.threat_intel_service = threat_intel_service
 
     # Register blueprints
     auth_bp = init_auth_routes(app, mongo, bcrypt, user_service)
