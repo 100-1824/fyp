@@ -40,6 +40,10 @@ class AIDetectionService:
         self.detection_cache = {}  # Cache to prevent duplicate detections
         self.cache_ttl = 10  # Cache TTL in seconds (reduced from 60 for better responsiveness)
 
+        # Flow tracking for proper feature aggregation
+        self.flow_tracker = {}  # {flow_key: {"packets": [...], "stats": {...}}}
+        self.flow_max_packets = 20  # Max packets to track per flow
+
         # False positive filtering (lowered thresholds for better detection)
         self.confidence_threshold = 0.50  # Minimum confidence for detection (was 0.75)
         self.consecutive_threshold = 1  # Consecutive detections needed (was 3)
@@ -276,66 +280,135 @@ class AIDetectionService:
             logger.error(f"Error extracting features: {e}")
             return None
 
+    def track_packet_in_flow(self, flow_key: str, packet_data: Dict[str, Any]) -> None:
+        """
+        Track a packet in a flow for proper feature aggregation.
+
+        Args:
+            flow_key: Unique flow identifier
+            packet_data: Packet information
+        """
+        now = datetime.now()
+
+        if flow_key not in self.flow_tracker:
+            self.flow_tracker[flow_key] = {
+                "packets": [],
+                "first_seen": now,
+                "last_seen": now,
+            }
+
+        flow = self.flow_tracker[flow_key]
+        flow["last_seen"] = now
+        flow["packets"].append({
+            "size": packet_data.get("size", 64),
+            "timestamp": now,
+            "syn": packet_data.get("syn", 0),
+            "ack": packet_data.get("ack", 0),
+            "psh": packet_data.get("psh", 0),
+            "rst": packet_data.get("rst", 0),
+            "fin": packet_data.get("fin", 0),
+            "urg": packet_data.get("urg", 0),
+        })
+
+        # Keep only recent packets
+        if len(flow["packets"]) > self.flow_max_packets:
+            flow["packets"] = flow["packets"][-self.flow_max_packets:]
+
+        # Cleanup old flows (older than 5 minutes)
+        self._cleanup_old_flows()
+
+    def _cleanup_old_flows(self) -> None:
+        """Remove flows older than 5 minutes"""
+        now = datetime.now()
+        keys_to_remove = []
+        for key, flow in self.flow_tracker.items():
+            if (now - flow["last_seen"]).total_seconds() > 300:
+                keys_to_remove.append(key)
+        for key in keys_to_remove:
+            del self.flow_tracker[key]
+
     def aggregate_flow_features(
-        self, flow_key: str, window_size: int = 10
+        self, flow_key: str, packet_data: Dict[str, Any]
     ) -> Optional[Dict[str, float]]:
         """
-        Aggregate features from multiple packets in a flow.
-        Feature names MUST match exactly with feature_names.json for model prediction.
+        Compute aggregated features from tracked packets in a flow.
+        Uses actual packet statistics instead of hardcoded values.
 
         Args:
             flow_key: Unique identifier for flow (src-dst pair)
-            window_size: Number of recent packets to consider
+            packet_data: Current packet data
 
         Returns:
-            Aggregated feature dictionary with correct feature names
+            Aggregated feature dictionary or None to use per-packet features
         """
         try:
-            # Feature names must match exactly what the model was trained on
-            # These are the 42 features from feature_names.json
+            # Track this packet
+            self.track_packet_in_flow(flow_key, packet_data)
+
+            flow = self.flow_tracker.get(flow_key)
+            if not flow or len(flow["packets"]) < 2:
+                # Not enough packets - return None to use per-packet features
+                return None
+
+            packets = flow["packets"]
+            sizes = [p["size"] for p in packets]
+
+            # Calculate flow duration in microseconds
+            flow_duration = (flow["last_seen"] - flow["first_seen"]).total_seconds() * 1000000
+            if flow_duration == 0:
+                flow_duration = 1.0
+
+            # Calculate inter-arrival times
+            iats = []
+            for i in range(1, len(packets)):
+                iat = (packets[i]["timestamp"] - packets[i-1]["timestamp"]).total_seconds() * 1000000
+                iats.append(iat)
+
+            # Calculate statistics
+            def safe_std(lst):
+                if len(lst) < 2:
+                    return 0.0
+                mean = sum(lst) / len(lst)
+                variance = sum((x - mean) ** 2 for x in lst) / len(lst)
+                return variance ** 0.5
+
+            # Sum flags across all packets in flow
+            total_syn = sum(p.get("syn", 0) for p in packets)
+            total_ack = sum(p.get("ack", 0) for p in packets)
+            total_psh = sum(p.get("psh", 0) for p in packets)
+            total_rst = sum(p.get("rst", 0) for p in packets)
+            total_fin = sum(p.get("fin", 0) for p in packets)
+            total_urg = sum(p.get("urg", 0) for p in packets)
+
+            # Calculate aggregated features
             aggregated = {
-                "Flow Duration": 1.0,
-                "Fwd Packet Length Max": 1500.0,
-                "Fwd Packet Length Min": 64.0,
-                "Fwd Packet Length Mean": 750.0,
-                "Fwd Packet Length Std": 0.0,
-                "Bwd Packet Length Max": 0.0,
-                "Bwd Packet Length Min": 0.0,
-                "Bwd Packet Length Mean": 0.0,
-                "Bwd Packet Length Std": 0.0,
-                "Flow Bytes/s": 1000.0,
-                "Flow Packets/s": 1.0,
-                "Flow IAT Mean": 0.0,
-                "Flow IAT Std": 0.0,
-                "Flow IAT Max": 0.0,
-                "Flow IAT Min": 0.0,
-                "Fwd IAT Mean": 0.0,
-                "Fwd IAT Std": 0.0,
-                "Fwd IAT Max": 0.0,
-                "Fwd IAT Min": 0.0,
-                "Bwd IAT Mean": 0.0,
-                "Bwd IAT Std": 0.0,
-                "Bwd IAT Max": 0.0,
-                "Bwd IAT Min": 0.0,
-                "FIN Flag Count": 0.0,
-                "SYN Flag Count": 0.0,
-                "RST Flag Count": 0.0,
-                "PSH Flag Count": 0.0,
-                "ACK Flag Count": 0.0,
-                "URG Flag Count": 0.0,
-                "ECE Flag Count": 0.0,
-                "CWR Flag Count": 0.0,
-                "Fwd PSH Flags": 0.0,
-                "Bwd PSH Flags": 0.0,
-                "Fwd URG Flags": 0.0,
-                "Bwd URG Flags": 0.0,
-                "Fwd Header Length": 20.0,
-                "Bwd Header Length": 0.0,
-                "Packet Length Mean": 750.0,
-                "Packet Length Std": 0.0,
-                "Packet Length Variance": 0.0,
-                "Down/Up Ratio": 0.0,
-                "Average Packet Size": 750.0,
+                "Flow Duration": flow_duration,
+                "Fwd Packet Length Max": max(sizes),
+                "Fwd Packet Length Min": min(sizes),
+                "Fwd Packet Length Mean": sum(sizes) / len(sizes),
+                "Fwd Packet Length Std": safe_std(sizes),
+                "Flow Bytes/s": sum(sizes) / (flow_duration / 1000000) if flow_duration > 0 else sum(sizes),
+                "Flow Packets/s": len(packets) / (flow_duration / 1000000) if flow_duration > 0 else len(packets),
+                "Flow IAT Mean": sum(iats) / len(iats) if iats else 0.0,
+                "Flow IAT Std": safe_std(iats) if iats else 0.0,
+                "Flow IAT Max": max(iats) if iats else 0.0,
+                "Flow IAT Min": min(iats) if iats else 0.0,
+                "Fwd IAT Mean": sum(iats) / len(iats) if iats else 0.0,
+                "Fwd IAT Std": safe_std(iats) if iats else 0.0,
+                "Fwd IAT Max": max(iats) if iats else 0.0,
+                "Fwd IAT Min": min(iats) if iats else 0.0,
+                "FIN Flag Count": float(total_fin),
+                "SYN Flag Count": float(total_syn),
+                "RST Flag Count": float(total_rst),
+                "PSH Flag Count": float(total_psh),
+                "ACK Flag Count": float(total_ack),
+                "URG Flag Count": float(total_urg),
+                "Fwd PSH Flags": float(total_psh),
+                "Fwd URG Flags": float(total_urg),
+                "Packet Length Mean": sum(sizes) / len(sizes),
+                "Packet Length Std": safe_std(sizes),
+                "Packet Length Variance": safe_std(sizes) ** 2,
+                "Average Packet Size": sum(sizes) / len(sizes),
             }
 
             return aggregated
@@ -465,10 +538,19 @@ class AIDetectionService:
             # Create flow key
             flow_key = f"{packet_data.get('source', '0.0.0.0')}-{packet_data.get('destination', '0.0.0.0')}"
 
-            # Aggregate flow features
-            aggregated_features = self.aggregate_flow_features(flow_key)
+            # Aggregate flow features from tracked packets
+            aggregated_features = self.aggregate_flow_features(flow_key, packet_data)
             if aggregated_features:
-                features.update(aggregated_features)
+                # Only update flow-level statistics, keep per-packet features for flags
+                for key in ["Flow Duration", "Flow Bytes/s", "Flow Packets/s",
+                           "Flow IAT Mean", "Flow IAT Std", "Flow IAT Max", "Flow IAT Min",
+                           "Fwd IAT Mean", "Fwd IAT Std", "Fwd IAT Max", "Fwd IAT Min",
+                           "Fwd Packet Length Max", "Fwd Packet Length Min",
+                           "Fwd Packet Length Mean", "Fwd Packet Length Std",
+                           "Packet Length Mean", "Packet Length Std", "Packet Length Variance",
+                           "Average Packet Size"]:
+                    if key in aggregated_features:
+                        features[key] = aggregated_features[key]
 
             # Make prediction
             result = self.predict(features)
