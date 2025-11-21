@@ -203,6 +203,12 @@ def create_app(config_name="default"):
     app.register_blueprint(rules_api)
     app.logger.info("✓ Rules API registered at /api/v1/rules")
 
+    # Register admin API (System Administration)
+    from api.admin import init_admin_api
+
+    init_admin_api(app)
+    app.logger.info("✓ Admin API registered at /api/v1/admin")
+
     # Start packet capture in background thread
     if not app.config.get("TESTING"):
         capture_thread = Thread(target=packet_service.capture_packets, daemon=True)
