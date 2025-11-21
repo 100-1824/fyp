@@ -83,8 +83,8 @@ class RLDetectionService:
             # RL model expects 42 features (matching AI model and feature_names.json)
             expected_features = 42
 
-            # Load RL model
-            self.rl_model = keras.models.load_model(str(model_file))
+            # Load RL model (compile=False to avoid optimizer state warnings during inference)
+            self.rl_model = keras.models.load_model(str(model_file), compile=False)
             logger.info(f"✓ Loaded RL model: {model_file.name}")
 
             # Validate model input shape matches feature count
