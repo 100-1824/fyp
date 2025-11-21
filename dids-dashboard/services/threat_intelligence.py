@@ -41,12 +41,12 @@ class ThreatIntelligenceService:
         self.config = config
 
         # IBM X-Force credentials
-        self.xforce_api_key = os.environ.get("XFORCE_API_KEY", "")
-        self.xforce_api_password = os.environ.get("XFORCE_API_PASSWORD", "")
+        self.xforce_api_key = os.environ.get("XFORCE_API_KEY", "842c9565-1f2d-44d8-93b5-19c9e18cb6e1")
+        self.xforce_api_password = os.environ.get("XFORCE_API_PASSWORD", "7667c28e-d88f-4db0-af77-cfe4ae806770")
         self.xforce_base_url = "https://api.xforce.ibmcloud.com"
 
         # AlienVault OTX credentials
-        self.otx_api_key = os.environ.get("OTX_API_KEY", "")
+        self.otx_api_key = os.environ.get("OTX_API_KEY", "7c7471b24cbd76b9ef0dbb5ba84b941e9f2b51337a6808dd57a9377ce5fea5a0")
         self.otx_base_url = "https://otx.alienvault.com/api/v1"
 
         # Cache for reducing API calls (TTL: 1 hour)
