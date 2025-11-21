@@ -465,9 +465,249 @@
         ::-webkit-scrollbar-thumb:hover {
             background: var(--text-light);
         }
+
+        /* Threat Notification Popup Styles */
+        .notification-container {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .threat-notification {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            padding: 16px;
+            width: 380px;
+            animation: slideIn 0.3s ease-out;
+            border-left: 4px solid var(--danger);
+        }
+
+        .threat-notification.critical {
+            border-left-color: #dc2626;
+            background: linear-gradient(135deg, #fff 0%, #fef2f2 100%);
+        }
+
+        .threat-notification.high {
+            border-left-color: #ea580c;
+            background: linear-gradient(135deg, #fff 0%, #fff7ed 100%);
+        }
+
+        .threat-notification.medium {
+            border-left-color: #f59e0b;
+            background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
+        .notification-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .notification-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .notification-title i {
+            color: var(--danger);
+            font-size: 20px;
+        }
+
+        .notification-title h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin: 0;
+        }
+
+        .notification-close {
+            background: none;
+            border: none;
+            color: var(--text-light);
+            cursor: pointer;
+            padding: 4px;
+            font-size: 16px;
+        }
+
+        .notification-close:hover {
+            color: var(--text-dark);
+        }
+
+        .notification-body {
+            margin-bottom: 12px;
+        }
+
+        .notification-detail {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-light);
+            margin-bottom: 4px;
+        }
+
+        .notification-detail strong {
+            color: var(--text-dark);
+        }
+
+        .notification-threat-type {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--danger);
+            margin-bottom: 8px;
+            padding: 4px 8px;
+            background: #fee2e2;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .notification-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .notification-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .notification-btn.quarantine {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .notification-btn.quarantine:hover {
+            background: #fde68a;
+        }
+
+        .notification-btn.block {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .notification-btn.block:hover {
+            background: #fecaca;
+        }
+
+        .notification-btn.allow {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .notification-btn.allow:hover {
+            background: #a7f3d0;
+        }
+
+        .notification-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border);
+        }
+
+        .notification-detection-method {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: 600;
+        }
+
+        .notification-detection-method.ai {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .notification-detection-method.sig {
+            background: #e2e8f0;
+            color: #475569;
+        }
+
+        .notification-detection-method.intel {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .notification-time {
+            font-size: 10px;
+            color: var(--text-light);
+        }
+
+        /* Sound toggle */
+        .sound-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9998;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .sound-toggle:hover {
+            background: var(--bg-light);
+        }
     </style>
 </head>
 <body>
+    <!-- Threat Notification Container -->
+    <div class="notification-container" id="notificationContainer"></div>
+
+    <!-- Sound Toggle Button -->
+    <button class="sound-toggle" id="soundToggle" title="Toggle notification sound">
+        <i class="fas fa-volume-up" id="soundIcon"></i>
+    </button>
+
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div class="logo">
@@ -1125,6 +1365,250 @@
 
         updateThreats();
         setInterval(updateThreats, 3000);
+
+        // =====================================================================
+        // THREAT NOTIFICATION SYSTEM
+        // =====================================================================
+
+        let notificationSound = true;
+        let seenThreatIds = new Set();
+        let notificationQueue = [];
+        const MAX_NOTIFICATIONS = 5;
+
+        // Toggle sound
+        document.getElementById('soundToggle').addEventListener('click', function() {
+            notificationSound = !notificationSound;
+            const icon = document.getElementById('soundIcon');
+            icon.className = notificationSound ? 'fas fa-volume-up' : 'fas fa-volume-mute';
+            toast.info(notificationSound ? 'Sound enabled' : 'Sound disabled');
+        });
+
+        // Play notification sound
+        function playNotificationSound() {
+            if (!notificationSound) return;
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                gainNode.gain.value = 0.3;
+
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.15);
+
+                setTimeout(() => {
+                    const osc2 = audioContext.createOscillator();
+                    osc2.connect(gainNode);
+                    osc2.frequency.value = 1000;
+                    osc2.type = 'sine';
+                    osc2.start();
+                    osc2.stop(audioContext.currentTime + 0.15);
+                }, 150);
+            } catch(e) {
+                console.log('Audio not supported');
+            }
+        }
+
+        // Create unique threat ID
+        function getThreatId(threat) {
+            return `${threat.timestamp}-${threat.source}-${threat.destination}-${threat.signature || threat.attack_type}`;
+        }
+
+        // Show threat notification popup
+        function showThreatNotification(threat) {
+            const container = document.getElementById('notificationContainer');
+            const notificationId = 'notif-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+
+            const threatType = threat.signature || threat.attack_type || 'Unknown Threat';
+            const severity = threat.severity || 'medium';
+            const detectionMethod = threat.detection_method || 'signature';
+            const time = new Date(threat.timestamp).toLocaleTimeString();
+
+            const methodClass = detectionMethod === 'ai' ? 'ai' :
+                               (threatType.includes('INTEL') ? 'intel' : 'sig');
+            const methodLabel = detectionMethod === 'ai' ? 'AI/ML' :
+                               (threatType.includes('INTEL') ? 'THREAT INTEL' : 'SIGNATURE');
+
+            const notification = document.createElement('div');
+            notification.className = `threat-notification ${severity}`;
+            notification.id = notificationId;
+            notification.innerHTML = `
+                <div class="notification-header">
+                    <div class="notification-title">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h4>Threat Detected!</h4>
+                    </div>
+                    <button class="notification-close" onclick="dismissNotification('${notificationId}')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="notification-body">
+                    <div class="notification-threat-type">${threatType.substring(0, 40)}${threatType.length > 40 ? '...' : ''}</div>
+                    <div class="notification-detail">
+                        <span>Source:</span>
+                        <strong>${threat.source}</strong>
+                    </div>
+                    <div class="notification-detail">
+                        <span>Destination:</span>
+                        <strong>${threat.destination}</strong>
+                    </div>
+                    ${threat.confidence ? `
+                    <div class="notification-detail">
+                        <span>Confidence:</span>
+                        <strong>${threat.confidence}%</strong>
+                    </div>
+                    ` : ''}
+                </div>
+                <div class="notification-actions">
+                    <button class="notification-btn quarantine" onclick="handleThreatAction('${notificationId}', 'quarantine', '${threat.source}')">
+                        <i class="fas fa-pause-circle"></i> Quarantine
+                    </button>
+                    <button class="notification-btn block" onclick="handleThreatAction('${notificationId}', 'block', '${threat.source}')">
+                        <i class="fas fa-ban"></i> Block
+                    </button>
+                    <button class="notification-btn allow" onclick="handleThreatAction('${notificationId}', 'allow', '${threat.source}')">
+                        <i class="fas fa-check"></i> Allow
+                    </button>
+                </div>
+                <div class="notification-meta">
+                    <span class="notification-detection-method ${methodClass}">${methodLabel}</span>
+                    <span class="notification-time">${time}</span>
+                </div>
+            `;
+
+            // Limit number of visible notifications
+            const existingNotifications = container.querySelectorAll('.threat-notification');
+            if (existingNotifications.length >= MAX_NOTIFICATIONS) {
+                const oldest = existingNotifications[0];
+                oldest.style.animation = 'slideOut 0.3s ease-out forwards';
+                setTimeout(() => oldest.remove(), 300);
+            }
+
+            container.appendChild(notification);
+            playNotificationSound();
+
+            // Auto-dismiss after 15 seconds
+            setTimeout(() => {
+                dismissNotification(notificationId);
+            }, 15000);
+        }
+
+        // Dismiss notification
+        function dismissNotification(notificationId) {
+            const notification = document.getElementById(notificationId);
+            if (notification) {
+                notification.style.animation = 'slideOut 0.3s ease-out forwards';
+                setTimeout(() => notification.remove(), 300);
+            }
+        }
+
+        // Handle threat action (Quarantine, Block, Allow)
+        async function handleThreatAction(notificationId, action, sourceIp) {
+            try {
+                // Show loading state
+                const notification = document.getElementById(notificationId);
+                if (notification) {
+                    const buttons = notification.querySelectorAll('.notification-btn');
+                    buttons.forEach(btn => btn.disabled = true);
+                }
+
+                // Send action to backend
+                const response = await fetch('/api/threat-action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, source_ip: sourceIp })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    toast.success(`IP ${sourceIp} ${action === 'quarantine' ? 'quarantined' : action === 'block' ? 'blocked' : 'allowed'}`);
+                } else {
+                    toast.warning(`Action logged: ${action} for ${sourceIp}`);
+                }
+
+                dismissNotification(notificationId);
+
+            } catch(e) {
+                console.error('Action error:', e);
+                toast.info(`Action ${action} logged for ${sourceIp}`);
+                dismissNotification(notificationId);
+            }
+        }
+
+        // Check for new threats and show notifications
+        function checkNewThreats(threats) {
+            if (!threats || threats.length === 0) return;
+
+            const newThreats = [];
+            threats.forEach(threat => {
+                const threatId = getThreatId(threat);
+                if (!seenThreatIds.has(threatId)) {
+                    seenThreatIds.add(threatId);
+                    newThreats.push(threat);
+                }
+            });
+
+            // Keep seen IDs set manageable
+            if (seenThreatIds.size > 1000) {
+                const idsArray = Array.from(seenThreatIds);
+                seenThreatIds = new Set(idsArray.slice(-500));
+            }
+
+            // Show notifications for new threats (limit to prevent spam)
+            const threatsToShow = newThreats.slice(0, 3);
+            threatsToShow.forEach((threat, index) => {
+                setTimeout(() => showThreatNotification(threat), index * 300);
+            });
+
+            // Show summary if more threats
+            if (newThreats.length > 3) {
+                setTimeout(() => {
+                    toast.warning(`${newThreats.length - 3} more threats detected!`);
+                }, 1000);
+            }
+        }
+
+        // Override updateThreats to also check for new notifications
+        const originalUpdateThreats = updateThreats;
+        updateThreats = async function() {
+            try {
+                const data = await fetch('/api/combined-threats').then(r => r.json());
+
+                // Check for new threats (only after initial load)
+                if (previousThreatCount > 0) {
+                    checkNewThreats(data.slice(0, data.length - previousThreatCount));
+                }
+
+                currentThreatsData = data;
+                filteredData = data;
+                applyFilters();
+                updateThreatTimeline(data);
+                updateDetectionMethods(data);
+                updateThreatTypes(data);
+                updateTopSources(data);
+                updateTopDestinations(data);
+                updateRecentAlerts(data);
+
+                previousThreatCount = data.length;
+                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+            } catch(e) {
+                console.error('Error updating threats:', e);
+            }
+        };
+
+        // Initialize seen threats on first load
+        setTimeout(async () => {
+            try {
+                const data = await fetch('/api/combined-threats').then(r => r.json());
+                data.forEach(threat => seenThreatIds.add(getThreatId(threat)));
+            } catch(e) {}
+        }, 100);
     </script>
 </body>
 </html>

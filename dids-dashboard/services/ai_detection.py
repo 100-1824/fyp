@@ -481,8 +481,8 @@ class AIDetectionService:
             # Store detection
             self.detections.append(detection)
 
-            # Keep only recent detections
-            max_detections = getattr(self.config, "AI_DETECTION_BUFFER", 50)
+            # Keep only recent detections (increased for testing)
+            max_detections = getattr(self.config, "AI_DETECTION_BUFFER", 500)
             if len(self.detections) > max_detections:
                 self.detections = self.detections[-max_detections:]
 

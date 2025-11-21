@@ -380,4 +380,94 @@ def init_api_routes(app, packet_service, threat_service, ai_service=None):
             app.logger.error(f"Error resetting simulation: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
 
+    # =========================================================================
+    # THREAT ACTION ENDPOINTS
+    # =========================================================================
+
+    @api_bp.route("/threat-action", methods=["POST"])
+    @login_required
+    def threat_action():
+        """
+        Handle threat response action (Quarantine, Block, Allow).
+        """
+        from datetime import datetime
+
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({"success": False, "error": "No data provided"}), 400
+
+            action = data.get("action")
+            source_ip = data.get("source_ip")
+
+            if not action or not source_ip:
+                return jsonify({"success": False, "error": "Missing action or source_ip"}), 400
+
+            if action not in ["quarantine", "block", "allow"]:
+                return jsonify({"success": False, "error": "Invalid action"}), 400
+
+            # Log the action
+            app.logger.info(f"Threat action: {action} for IP {source_ip} by user {current_user.username}")
+
+            # Store action record
+            action_record = {
+                "timestamp": datetime.now().isoformat(),
+                "action": action,
+                "source_ip": source_ip,
+                "user": current_user.username,
+                "status": "applied"
+            }
+
+            # Add to blocked/quarantined lists based on action
+            if action == "block":
+                if not hasattr(threat_service, 'blocked_ips'):
+                    threat_service.blocked_ips = set()
+                threat_service.blocked_ips.add(source_ip)
+                action_record["status"] = "IP added to blocklist"
+
+            elif action == "quarantine":
+                if not hasattr(threat_service, 'quarantined_ips'):
+                    threat_service.quarantined_ips = set()
+                threat_service.quarantined_ips.add(source_ip)
+                action_record["status"] = "IP quarantined for monitoring"
+
+            elif action == "allow":
+                if hasattr(threat_service, 'blocked_ips'):
+                    threat_service.blocked_ips.discard(source_ip)
+                if hasattr(threat_service, 'quarantined_ips'):
+                    threat_service.quarantined_ips.discard(source_ip)
+                action_record["status"] = "IP allowed"
+
+            # Store action history
+            if not hasattr(threat_service, 'action_history'):
+                threat_service.action_history = []
+            threat_service.action_history.append(action_record)
+
+            if len(threat_service.action_history) > 100:
+                threat_service.action_history = threat_service.action_history[-100:]
+
+            return jsonify({
+                "success": True,
+                "action": action,
+                "source_ip": source_ip,
+                "status": action_record["status"]
+            })
+
+        except Exception as e:
+            app.logger.error(f"Error processing threat action: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @api_bp.route("/blocked-ips")
+    @login_required
+    def blocked_ips():
+        """Get list of blocked and quarantined IPs"""
+        blocked = list(getattr(threat_service, 'blocked_ips', set()))
+        quarantined = list(getattr(threat_service, 'quarantined_ips', set()))
+        return jsonify({
+            "blocked": blocked,
+            "quarantined": quarantined,
+            "total_blocked": len(blocked),
+            "total_quarantined": len(quarantined)
+        })
+
     return api_bp
