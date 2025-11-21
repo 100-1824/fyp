@@ -222,8 +222,8 @@
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
             margin-bottom: 24px;
         }
 
@@ -422,6 +422,12 @@
         .threat-detail-body {
             font-size: 12px;
             color: var(--text-light);
+        }
+
+        @media (max-width: 1400px) {
+            .stats-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
         }
 
         @media (max-width: 1200px) {
@@ -732,6 +738,10 @@
                 <i class="fas fa-shield-virus"></i>
                 <span>Threats</span>
             </a>
+            <a href="{{ url_for('main.threat_intel') }}" class="nav-item">
+                <i class="fas fa-globe"></i>
+                <span>Threat Intelligence</span>
+            </a>
             <a href="{{ url_for('main.analytics') }}" class="nav-item">
                 <i class="fas fa-chart-line"></i>
                 <span>Analytics</span>
@@ -808,11 +818,23 @@
                 <div class="stat-card">
                     <div class="stat-header">
                         <div>
-                            <div class="stat-label">AI DETECTED</div>
+                            <div class="stat-label">AI/ML DETECTED</div>
                             <div class="stat-value" id="ai-threats">0</div>
                         </div>
                         <div class="stat-icon primary">
                             <i class="fas fa-brain"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div>
+                            <div class="stat-label">RL AGENT</div>
+                            <div class="stat-value" id="rl-threats">0</div>
+                        </div>
+                        <div class="stat-icon" style="background: #ede9fe; color: #8b5cf6;">
+                            <i class="fas fa-robot"></i>
                         </div>
                     </div>
                 </div>
@@ -1047,10 +1069,10 @@
         const detectionMethodChart = new Chart(detectionMethodCtx, {
             type: 'doughnut',
             data: {
-                labels: ['AI Detection', 'Signature Detection'],
+                labels: ['AI/ML Detection', 'RL Agent', 'Signature Detection'],
                 datasets: [{
-                    data: [0, 0],
-                    backgroundColor: ['#667eea', '#f59e0b'],
+                    data: [0, 0, 0],
+                    backgroundColor: ['#667eea', '#8b5cf6', '#f59e0b'],
                     borderWidth: 0
                 }]
             },
@@ -1169,9 +1191,10 @@
             if (!threats || threats.length === 0) return;
 
             const aiCount = threats.filter(t => t.detection_method === 'ai').length;
-            const sigCount = threats.length - aiCount;
+            const rlCount = threats.filter(t => t.detection_method === 'rl').length;
+            const sigCount = threats.filter(t => t.detection_method === 'signature' || !t.detection_method).length;
 
-            detectionMethodChart.data.datasets[0].data = [aiCount, sigCount];
+            detectionMethodChart.data.datasets[0].data = [aiCount, rlCount, sigCount];
             detectionMethodChart.update('none');
         }
 
@@ -1322,12 +1345,14 @@
             }
 
             const sigThreats = filteredData.filter(t => t.detection_method === 'signature' || !t.detection_method).length;
-            const aiThreats = filteredData.filter(t => t.detection_method === 'ai' || t.detection_method === 'rl').length;
+            const aiThreats = filteredData.filter(t => t.detection_method === 'ai').length;
+            const rlThreats = filteredData.filter(t => t.detection_method === 'rl').length;
             const blockedThreats = filteredData.filter(t => t.action === 'blocked' || t.action === 'block').length;
 
             animateNumber('total-threats', filteredData.length);
             animateNumber('sig-threats', sigThreats);
             animateNumber('ai-threats', aiThreats);
+            animateNumber('rl-threats', rlThreats);
             animateNumber('blocked-threats', blockedThreats);
 
             tbody.innerHTML = '';
