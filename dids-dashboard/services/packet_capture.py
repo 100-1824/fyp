@@ -524,3 +524,226 @@ class PacketCaptureService:
     def get_flow_count(self) -> int:
         """Get number of tracked flows"""
         return self.flow_tracker.get_flow_count() if self.flow_tracker else 0
+
+    def inject_simulated_packet(self, packet_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Inject a simulated packet for testing detection capabilities.
+        This bypasses the normal packet capture and directly processes the packet.
+
+        Args:
+            packet_data: Dictionary containing packet information:
+                - source: Source IP address
+                - destination: Destination IP address
+                - protocol: Protocol (TCP, UDP, ICMP)
+                - src_port: Source port
+                - dst_port: Destination port
+                - size: Packet size
+                - tcp_flags: TCP flags dict (optional)
+                - payload: Hex-encoded payload (optional)
+                - attack_type: Type of attack being simulated (optional)
+                - severity: Attack severity (optional)
+
+        Returns:
+            Dictionary with detection results
+        """
+        logger.info(f"Injecting simulated packet: {packet_data.get('source')} -> {packet_data.get('destination')}")
+
+        src = packet_data.get("source", "0.0.0.0")
+        dst = packet_data.get("destination", "0.0.0.0")
+        proto = packet_data.get("protocol", "TCP")
+        src_port = packet_data.get("src_port", 0)
+        dst_port = packet_data.get("dst_port", 0)
+        size = packet_data.get("size", 64)
+        attack_type = packet_data.get("attack_type")
+        severity = packet_data.get("severity", "medium")
+
+        # Convert hex payload if provided
+        payload = None
+        if packet_data.get("payload"):
+            try:
+                payload = bytes.fromhex(packet_data["payload"])
+            except:
+                payload = packet_data["payload"].encode() if isinstance(packet_data["payload"], str) else None
+
+        # Update statistics
+        self.stats["total_packets"] += 1
+        self.stats["protocol_dist"][proto] += 1
+        self.stats["top_talkers"][src] += size
+
+        # Track detections
+        detections = []
+        threat_detected = False
+        ai_detection_result = None
+        signature_detection = None
+
+        # Build packet info for detection
+        packet_info = {
+            "source": src,
+            "destination": dst,
+            "protocol": proto,
+            "src_port": src_port,
+            "dst_port": dst_port,
+            "size": size,
+            "fin": packet_data.get("tcp_flags", {}).get("fin", 0),
+            "syn": packet_data.get("tcp_flags", {}).get("syn", 0),
+            "rst": packet_data.get("tcp_flags", {}).get("rst", 0),
+            "psh": packet_data.get("tcp_flags", {}).get("psh", 0),
+            "ack": packet_data.get("tcp_flags", {}).get("ack", 0),
+            "urg": 0,
+            "ece": 0,
+            "cwr": 0,
+        }
+
+        # 1. Check signature-based threats (skip whitelist for simulated packets)
+        if self.threat_service:
+            signature_detection = self._check_simulated_signature_threats(
+                packet_info, src, dst, dst_port, payload, attack_type
+            )
+            if signature_detection:
+                threat_detected = True
+                detections.append({
+                    "type": "signature",
+                    "signature": signature_detection,
+                    "severity": severity
+                })
+
+        # 2. Check AI-based threats if available
+        if self.ai_service and self.ai_service.is_ready():
+            # Run AI detection
+            ai_detection_result = self.ai_service.detect_threat(packet_info)
+
+            if ai_detection_result:
+                threat_detected = True
+                self.stats["ai_detections"] += 1
+                detections.append({
+                    "type": "ai",
+                    "attack_type": ai_detection_result.get("attack_type"),
+                    "confidence": ai_detection_result.get("confidence"),
+                    "severity": ai_detection_result.get("severity")
+                })
+                logger.info(
+                    f"AI Detection on simulated packet: {ai_detection_result['attack_type']} "
+                    f"({ai_detection_result['confidence']}% confidence)"
+                )
+
+        # Create packet record
+        record = {
+            "timestamp": datetime.now().strftime("%H:%M:%S.%f")[:-3],
+            "source": src,
+            "destination": dst,
+            "protocol": proto,
+            "size": size,
+            "threat": threat_detected,
+            "simulated": True,
+            "ai_detection": ai_detection_result.get("attack_type") if ai_detection_result else None,
+            "ai_confidence": ai_detection_result.get("confidence") if ai_detection_result else None,
+            "signature_detection": signature_detection,
+            "attack_type": attack_type,
+        }
+
+        # Store the packet
+        self.store_packet(record)
+
+        return {
+            "success": True,
+            "packet": record,
+            "threat_detected": threat_detected,
+            "detections": detections,
+            "stats": {
+                "total_packets": self.stats["total_packets"],
+                "threats_blocked": self.stats["threats_blocked"],
+                "ai_detections": self.stats["ai_detections"]
+            }
+        }
+
+    def _check_simulated_signature_threats(
+        self,
+        packet_info: Dict[str, Any],
+        src: str,
+        dst: str,
+        dst_port: int,
+        payload: Optional[bytes],
+        attack_type: Optional[str]
+    ) -> Optional[str]:
+        """
+        Check simulated packet against signature-based detection.
+        This version DOES NOT check whitelist to allow testing with any IPs.
+
+        Args:
+            packet_info: Packet information dict
+            src: Source IP
+            dst: Destination IP
+            dst_port: Destination port
+            payload: Packet payload bytes
+            attack_type: Pre-specified attack type for logging
+
+        Returns:
+            Detected signature name or None
+        """
+        threat_signature = None
+
+        # Check for suspicious C2/backdoor ports
+        suspicious_ports = [4444, 5555, 6666, 7777, 31337, 8888, 9999]
+        if dst_port in suspicious_ports:
+            self.threat_service.log_threat(
+                "ET MALWARE Reverse Shell",
+                src,
+                dst,
+                {"port": dst_port, "protocol": packet_info.get("protocol"), "simulated": True},
+            )
+            self.stats["threats_blocked"] += 1
+            threat_signature = "ET MALWARE Reverse Shell"
+
+        # Check payload for attack patterns
+        if payload:
+            matches = self.threat_service.check_payload_signatures(payload)
+            for signature in matches:
+                self.threat_service.log_threat(
+                    signature, src, dst, {"protocol": packet_info.get("protocol"), "simulated": True}
+                )
+                self.stats["threats_blocked"] += 1
+                if not threat_signature:
+                    threat_signature = signature
+
+        # Port scan detection
+        if self.threat_service.detect_port_scan(src, dst_port):
+            self.threat_service.log_threat(
+                "ET SCAN Aggressive Port Scan",
+                src,
+                dst,
+                {"scanned_port": dst_port, "simulated": True},
+            )
+            self.stats["threats_blocked"] += 1
+            threat_signature = "ET SCAN Aggressive Port Scan"
+
+        # DNS anomaly detection for UDP port 53
+        if packet_info.get("protocol") == "UDP" and dst_port == 53:
+            if self.threat_service.detect_dns_anomaly(src):
+                self.threat_service.log_threat(
+                    "ET DNS Excessive Queries", src, dst, {"queries": "excessive", "simulated": True}
+                )
+                self.stats["threats_blocked"] += 1
+                threat_signature = "ET DNS Excessive Queries"
+
+        # Log attack type if provided but no signature matched
+        if attack_type and not threat_signature:
+            # Map attack types to signatures
+            attack_signature_map = {
+                "DDoS": "ET DDOS Attack Detected",
+                "PortScan": "ET SCAN Aggressive Port Scan",
+                "Bot": "ET MALWARE C2 Communication",
+                "Web Attack": "ET WEB Attack Detected",
+                "Brute Force": "ET ATTACK Brute Force Detected",
+                "Infiltration": "ET DNS Excessive Queries",
+            }
+            signature = attack_signature_map.get(attack_type, f"ET SIMULATED {attack_type}")
+            self.threat_service.log_threat(
+                signature,
+                src,
+                dst,
+                {"attack_type": attack_type, "simulated": True},
+            )
+            self.stats["threats_blocked"] += 1
+            threat_signature = signature
+
+        return threat_signature

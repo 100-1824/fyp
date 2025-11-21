@@ -239,4 +239,143 @@ def init_api_routes(app, packet_service, threat_service, ai_service=None):
 
         return jsonify(overview)
 
+    # =========================================================================
+    # SIMULATION / TESTING ENDPOINTS
+    # =========================================================================
+
+    @api_bp.route("/inject-packet", methods=["POST"])
+    @login_required
+    def inject_packet():
+        """
+        Inject a simulated packet for testing detection capabilities.
+        This endpoint allows testing the detection system without actual network traffic.
+
+        Request body:
+        {
+            "source": "185.220.101.42",
+            "destination": "10.0.0.50",
+            "protocol": "TCP",
+            "src_port": 54321,
+            "dst_port": 80,
+            "size": 512,
+            "tcp_flags": {"syn": true, "ack": false},
+            "payload": "hex-encoded-payload",
+            "attack_type": "DDoS",
+            "severity": "high"
+        }
+        """
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({"success": False, "error": "No packet data provided"}), 400
+
+            # Validate required fields
+            required = ["source", "destination"]
+            for field in required:
+                if field not in data:
+                    return jsonify({"success": False, "error": f"Missing required field: {field}"}), 400
+
+            # Inject packet into detection pipeline
+            result = packet_service.inject_simulated_packet(data)
+
+            return jsonify(result)
+
+        except Exception as e:
+            app.logger.error(f"Error injecting packet: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @api_bp.route("/inject-batch", methods=["POST"])
+    @login_required
+    def inject_batch():
+        """
+        Inject multiple simulated packets at once for bulk testing.
+
+        Request body:
+        {
+            "packets": [
+                {"source": "...", "destination": "...", ...},
+                {"source": "...", "destination": "...", ...}
+            ]
+        }
+        """
+        try:
+            data = request.get_json()
+            if not data or "packets" not in data:
+                return jsonify({"success": False, "error": "No packets array provided"}), 400
+
+            packets = data["packets"]
+            if not isinstance(packets, list):
+                return jsonify({"success": False, "error": "packets must be an array"}), 400
+
+            results = []
+            threats_detected = 0
+            total_detections = 0
+
+            for packet_data in packets:
+                result = packet_service.inject_simulated_packet(packet_data)
+                results.append(result)
+                if result.get("threat_detected"):
+                    threats_detected += 1
+                total_detections += len(result.get("detections", []))
+
+            return jsonify({
+                "success": True,
+                "total_packets": len(packets),
+                "threats_detected": threats_detected,
+                "total_detections": total_detections,
+                "results": results[-10:]  # Return last 10 results to limit response size
+            })
+
+        except Exception as e:
+            app.logger.error(f"Error injecting batch packets: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @api_bp.route("/simulation/status")
+    @login_required
+    def simulation_status():
+        """Get current simulation/detection statistics"""
+        stats = packet_service.get_stats()
+        threat_stats = threat_service.get_threat_statistics()
+
+        ai_stats = {}
+        if ai_service and ai_service.is_ready():
+            ai_stats = ai_service.get_detection_statistics()
+
+        return jsonify({
+            "packet_stats": stats,
+            "threat_stats": threat_stats,
+            "ai_stats": ai_stats,
+            "simulation_ready": True
+        })
+
+    @api_bp.route("/simulation/reset", methods=["POST"])
+    @login_required
+    def reset_simulation():
+        """Reset simulation statistics and clear detection buffers"""
+        try:
+            # Clear threat detections
+            threat_service.signature_detections = []
+            threat_service.scan_tracker.clear()
+            threat_service.dns_tracker.clear()
+
+            # Reset packet service stats
+            packet_service.stats = {
+                "total_packets": 0,
+                "protocol_dist": {},
+                "top_talkers": {},
+                "threats_blocked": 0,
+                "ai_detections": 0,
+            }
+            packet_service.traffic_data = []
+
+            # Reset AI service if available
+            if ai_service and ai_service.is_ready():
+                ai_service.detections = []
+
+            return jsonify({"success": True, "message": "Simulation reset complete"})
+
+        except Exception as e:
+            app.logger.error(f"Error resetting simulation: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
     return api_bp
