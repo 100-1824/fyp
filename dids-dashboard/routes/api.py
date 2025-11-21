@@ -117,6 +117,8 @@ def init_api_routes(app, packet_service, threat_service, ai_service=None, rl_ser
             "actions_distribution": {"allow": 0, "alert": 0, "block": 0},
             "recent_detections": 0,
             "rl_model_loaded": False,
+            "block_threshold": 0.70,
+            "alert_threshold": 0.50,
         })
 
     @api_bp.route("/rl-decisions")
