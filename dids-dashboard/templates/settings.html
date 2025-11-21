@@ -585,6 +585,59 @@
             <div class="card">
                 <div class="card-header">
                     <h3 class="card-title">
+                        <i class="fas fa-robot"></i>
+                        RL Agent Settings
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="setting-group">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">RL Agent Status</div>
+                                <div class="setting-description">Reinforcement Learning agent for adaptive threat response</div>
+                            </div>
+                            <div class="setting-control">
+                                <span class="status-badge status-active" id="rl-status">LOADING</span>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Block Confidence Threshold</div>
+                                <div class="setting-description">Minimum confidence required to BLOCK traffic (0.0 - 1.0). Lower values increase false positives.</div>
+                            </div>
+                            <div class="setting-control">
+                                <input type="number" class="input-field" id="rl-block-threshold" min="0" max="1" step="0.05" value="0.70">
+                                <button class="btn btn-primary" onclick="updateRLThresholds()">Update</button>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Alert Confidence Threshold</div>
+                                <div class="setting-description">Minimum confidence required to raise ALERT (0.0 - 1.0). Traffic below this is allowed.</div>
+                            </div>
+                            <div class="setting-control">
+                                <input type="number" class="input-field" id="rl-alert-threshold" min="0" max="1" step="0.05" value="0.50">
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Total RL Decisions</div>
+                                <div class="setting-description">Number of decisions made by RL agent</div>
+                            </div>
+                            <div class="setting-control">
+                                <span style="font-weight: 600;" id="rl-decisions">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
                         <i class="fas fa-shield-alt"></i>
                         Threat Detection Settings
                     </h3>
@@ -724,11 +777,54 @@
             }
         }
 
+        async function updateRLThresholds() {
+            const blockThreshold = parseFloat(document.getElementById('rl-block-threshold').value);
+            const alertThreshold = parseFloat(document.getElementById('rl-alert-threshold').value);
+
+            if (blockThreshold < 0 || blockThreshold > 1 || alertThreshold < 0 || alertThreshold > 1) {
+                toast.warning('Thresholds must be between 0.0 and 1.0');
+                return;
+            }
+
+            if (alertThreshold > blockThreshold) {
+                toast.warning('Alert threshold should be lower than block threshold');
+                return;
+            }
+
+            try {
+                loading.show('Updating RL thresholds...');
+                const response = await fetch('/api/rl-threshold', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        block_threshold: blockThreshold,
+                        alert_threshold: alertThreshold
+                    })
+                });
+
+                const data = await response.json();
+                loading.hide();
+
+                if (data.success) {
+                    toast.success('RL thresholds updated: Block=' + (blockThreshold * 100).toFixed(0) + '%, Alert=' + (alertThreshold * 100).toFixed(0) + '%');
+                    pulseElement('rl-block-threshold');
+                    pulseElement('rl-alert-threshold');
+                } else {
+                    toast.error('Failed to update thresholds: ' + (data.error || 'Unknown error'));
+                }
+            } catch(e) {
+                console.error('Error updating RL thresholds:', e);
+                loading.hide();
+                toast.error('Failed to update RL thresholds');
+            }
+        }
+
         async function loadSettings() {
             try {
                 const stats = await fetch('/api/stats').then(r => r.json());
                 const aiStats = await fetch('/api/ai-stats').then(r => r.json());
                 const modelInfo = await fetch('/api/ai-model-info').then(r => r.json());
+                const rlStats = await fetch('/api/rl-stats').then(r => r.json());
 
                 animateNumber('total-packets', stats.total_packets);
                 const totalThreats = (stats.threats_blocked || 0) + (aiStats.total_detections || 0);
@@ -743,6 +839,22 @@
                 } else {
                     document.getElementById('ai-status').textContent = 'OFFLINE';
                     document.getElementById('ai-status').className = 'status-badge status-inactive';
+                }
+
+                // Load RL Agent settings
+                if (rlStats.rl_model_loaded) {
+                    document.getElementById('rl-status').textContent = 'ACTIVE';
+                    document.getElementById('rl-status').className = 'status-badge status-active';
+                    if (rlStats.block_threshold !== undefined) {
+                        document.getElementById('rl-block-threshold').value = rlStats.block_threshold;
+                    }
+                    if (rlStats.alert_threshold !== undefined) {
+                        document.getElementById('rl-alert-threshold').value = rlStats.alert_threshold;
+                    }
+                    animateNumber('rl-decisions', rlStats.total_decisions || 0);
+                } else {
+                    document.getElementById('rl-status').textContent = 'OFFLINE';
+                    document.getElementById('rl-status').className = 'status-badge status-inactive';
                 }
 
                 document.getElementById('network-interface').textContent = 'eth0';
