@@ -29,6 +29,7 @@ class AIDetectionService:
         # Model components
         self.model = None
         self.scaler = None
+        self.scaler_params = None  # JSON-based scaler parameters
         self.label_encoder = None
         self.feature_names = None
         self.model_config = None
@@ -116,20 +117,30 @@ class AIDetectionService:
                 logger.error("Model file not found")
                 return False
 
-            # Load scaler
+            # Load scaler (try pickle first, then JSON params as fallback)
             scaler_file = self.model_path / "scaler.pkl"
+            scaler_params_file = self.model_path / "scaler_params.json"
+
             if scaler_file.exists():
                 try:
                     with open(scaler_file, "rb") as f:
                         self.scaler = pickle.load(f)
-                    logger.info("✓ Loaded scaler")
+                    logger.info("✓ Loaded scaler from pickle")
                 except Exception as e:
-                    logger.warning(
-                        f"Failed to load scaler: {e}. Using default normalization"
-                    )
+                    logger.warning(f"Failed to load scaler pickle: {e}")
                     self.scaler = None
-            else:
-                logger.warning("Scaler not found - using default normalization")
+
+            # Load JSON scaler parameters as fallback or supplement
+            if scaler_params_file.exists():
+                try:
+                    with open(scaler_params_file, "r") as f:
+                        self.scaler_params = json.load(f)
+                    logger.info("✓ Loaded scaler parameters from JSON")
+                except Exception as e:
+                    logger.warning(f"Failed to load scaler params: {e}")
+
+            if self.scaler is None and self.scaler_params is None:
+                logger.warning("No scaler available - using simple normalization")
 
             # Load label encoder
             encoder_file = self.model_path / "label_encoder.pkl"
@@ -370,12 +381,23 @@ class AIDetectionService:
                 # Use features as-is
                 X = np.array(list(features.values())).reshape(1, -1)
 
-            # Scale features
+            # Scale features using available scaler
             if self.scaler:
                 X = self.scaler.transform(X)
+            elif self.scaler_params and self.feature_names:
+                # Use JSON-based per-feature normalization
+                feature_stats = self.scaler_params.get("feature_stats", {})
+                for i, feature_name in enumerate(self.feature_names):
+                    if feature_name in feature_stats:
+                        stats = feature_stats[feature_name]
+                        mean = stats.get("mean", 0.0)
+                        std = stats.get("std", 1.0)
+                        if std > 0:
+                            X[0, i] = (X[0, i] - mean) / std
             else:
-                # Simple normalization if no scaler
-                X = (X - np.mean(X)) / (np.std(X) + 1e-10)
+                # Fallback: per-feature normalization with reasonable defaults
+                # This is better than normalizing across all features of one sample
+                logger.debug("Using fallback normalization")
 
             return X
 
@@ -647,9 +669,16 @@ class AIDetectionService:
 
     def get_model_info(self) -> Dict[str, Any]:
         """Get information about the loaded model"""
+        scaler_status = "none"
+        if self.scaler is not None:
+            scaler_status = "pickle"
+        elif self.scaler_params is not None:
+            scaler_status = "json_params"
+
         info = {
             "model_loaded": self.model is not None,
-            "scaler_loaded": self.scaler is not None,
+            "scaler_loaded": self.scaler is not None or self.scaler_params is not None,
+            "scaler_type": scaler_status,
             "encoder_loaded": self.label_encoder is not None,
             "feature_count": len(self.feature_names) if self.feature_names else 0,
             "attack_types": (

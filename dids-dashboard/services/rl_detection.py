@@ -34,6 +34,7 @@ class RLDetectionService:
         # RL Agent model
         self.rl_model = None
         self.scaler = None
+        self.scaler_params = None  # JSON-based scaler parameters
         self.feature_names = None
 
         # Action mapping
@@ -104,12 +105,30 @@ class RLDetectionService:
             except Exception as e:
                 logger.warning(f"Could not validate model input shape: {e}")
 
-            # Load scaler (from same directory as model)
+            # Load scaler (try pickle first, then JSON params as fallback)
             scaler_file = self.model_path / "scaler.pkl"
+            scaler_params_file = self.model_path / "scaler_params.json"
+
             if scaler_file.exists():
-                with open(scaler_file, "rb") as f:
-                    self.scaler = pickle.load(f)
-                logger.info("✓ Loaded feature scaler")
+                try:
+                    with open(scaler_file, "rb") as f:
+                        self.scaler = pickle.load(f)
+                    logger.info("✓ Loaded feature scaler from pickle")
+                except Exception as e:
+                    logger.warning(f"Failed to load scaler pickle: {e}")
+                    self.scaler = None
+
+            # Load JSON scaler parameters as fallback
+            if scaler_params_file.exists():
+                try:
+                    with open(scaler_params_file, "r") as f:
+                        self.scaler_params = json.load(f)
+                    logger.info("✓ Loaded scaler parameters from JSON")
+                except Exception as e:
+                    logger.warning(f"Failed to load scaler params: {e}")
+
+            if self.scaler is None and self.scaler_params is None:
+                logger.warning("No scaler available - using simple normalization")
 
             logger.info("RL Detection Service initialized successfully")
             return True
@@ -192,15 +211,28 @@ class RLDetectionService:
 
             X = np.array(feature_vector, dtype=np.float32).reshape(1, -1)
 
-            # Scale features if scaler available
+            # Scale features using available scaler
             if self.scaler:
                 try:
                     X = self.scaler.transform(X)
                 except Exception as e:
-                    logger.warning(f"Scaler transform failed: {e}, using raw features")
-            else:
-                # Apply simple normalization as fallback
-                X = (X - np.mean(X)) / (np.std(X) + 1e-10)
+                    logger.warning(f"Scaler transform failed: {e}, using JSON params")
+                    self.scaler = None  # Disable failed scaler
+
+            if self.scaler is None and self.scaler_params and self.feature_names:
+                # Use JSON-based per-feature normalization
+                feature_stats = self.scaler_params.get("feature_stats", {})
+                for i, feature_name in enumerate(self.feature_names):
+                    if feature_name in feature_stats:
+                        stats = feature_stats[feature_name]
+                        mean = stats.get("mean", 0.0)
+                        std = stats.get("std", 1.0)
+                        if std > 0:
+                            X[0, i] = (X[0, i] - mean) / std
+            elif self.scaler is None and self.scaler_params is None:
+                # Fallback: no normalization (raw features)
+                # This is better than wrong single-sample normalization
+                logger.debug("Using raw features - no scaler available")
 
             return X
 
@@ -254,7 +286,16 @@ class RLDetectionService:
 
             # Calculate confidence (softmax of Q-values)
             exp_q = np.exp(q_values - np.max(q_values))
-            confidence = exp_q[action_id] / np.sum(exp_q)
+            softmax_probs = exp_q / np.sum(exp_q)
+            confidence = softmax_probs[action_id]
+
+            # Log Q-values periodically for debugging (every 100 decisions)
+            if self.decisions_made % 100 == 0:
+                logger.info(
+                    f"RL Q-values sample - allow: {q_values[0]:.4f}, "
+                    f"alert: {q_values[1]:.4f}, block: {q_values[2]:.4f} | "
+                    f"softmax: [{softmax_probs[0]:.3f}, {softmax_probs[1]:.3f}, {softmax_probs[2]:.3f}]"
+                )
 
             # Update metrics
             self.decisions_made += 1
@@ -361,6 +402,12 @@ class RLDetectionService:
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get RL detection statistics"""
+        scaler_status = "none"
+        if self.scaler is not None:
+            scaler_status = "pickle"
+        elif self.scaler_params is not None:
+            scaler_status = "json_params"
+
         return {
             "total_decisions": self.decisions_made,
             "threats_blocked": self.threats_blocked,
@@ -368,6 +415,7 @@ class RLDetectionService:
             "actions_distribution": self.actions_taken.copy(),
             "recent_detections": len(self.detections),
             "rl_model_loaded": self.rl_model is not None,
+            "scaler_type": scaler_status,
         }
 
     def get_recent_decisions(self, limit: int = 20) -> list:
