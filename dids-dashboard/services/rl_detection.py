@@ -80,8 +80,8 @@ class RLDetectionService:
                     self.feature_names = json.load(f)
                 logger.info(f"✓ Loaded {len(self.feature_names)} feature names")
 
-            # RL model expects 77 features (CICIDS format)
-            expected_features = 77
+            # RL model expects 42 features (matching AI model and feature_names.json)
+            expected_features = 42
 
             # Load RL model
             self.rl_model = keras.models.load_model(str(model_file))
@@ -121,7 +121,7 @@ class RLDetectionService:
     def extract_features(self, packet_data: Dict[str, Any]) -> Optional[np.ndarray]:
         """
         Extract features from packet data for RL agent.
-        Extracts 77 features matching CICIDS dataset format.
+        Extracts 42 features matching the trained model and feature_names.json.
 
         Args:
             packet_data: Dictionary containing packet information
@@ -132,8 +132,6 @@ class RLDetectionService:
         try:
             # Get packet characteristics
             packet_size = float(packet_data.get("size", 64))
-            src_port = float(packet_data.get("src_port", 0))
-            dst_port = float(packet_data.get("dst_port", 0))
 
             # Extract TCP flags from packet data
             syn_flag = float(packet_data.get("syn", 0))
@@ -145,89 +143,51 @@ class RLDetectionService:
             ece_flag = float(packet_data.get("ece", 0))
             cwr_flag = float(packet_data.get("cwr", 0))
 
-            # Protocol encoding
-            protocol = packet_data.get("protocol", "TCP")
-            protocol_num = self._encode_protocol(protocol)
-
-            # 77 features matching CICIDS2017/2018 dataset format
+            # 42 features matching feature_names.json (same as AI model)
+            # This ensures consistency between AI and RL detection
             feature_vector = [
-                dst_port,                    # 1. Destination Port
-                packet_size,                 # 2. Flow Duration (using size as proxy)
-                1.0,                         # 3. Total Fwd Packets
-                0.0,                         # 4. Total Backward Packets
-                packet_size,                 # 5. Total Length of Fwd Packets
-                0.0,                         # 6. Total Length of Bwd Packets
-                packet_size,                 # 7. Fwd Packet Length Max
-                packet_size,                 # 8. Fwd Packet Length Min
-                packet_size,                 # 9. Fwd Packet Length Mean
-                0.0,                         # 10. Fwd Packet Length Std
-                0.0,                         # 11. Bwd Packet Length Max
-                0.0,                         # 12. Bwd Packet Length Min
-                0.0,                         # 13. Bwd Packet Length Mean
-                0.0,                         # 14. Bwd Packet Length Std
-                packet_size,                 # 15. Flow Bytes/s
-                1.0,                         # 16. Flow Packets/s
-                0.0,                         # 17. Flow IAT Mean
-                0.0,                         # 18. Flow IAT Std
-                0.0,                         # 19. Flow IAT Max
-                0.0,                         # 20. Flow IAT Min
-                0.0,                         # 21. Fwd IAT Total
-                0.0,                         # 22. Fwd IAT Mean
-                0.0,                         # 23. Fwd IAT Std
-                0.0,                         # 24. Fwd IAT Max
-                0.0,                         # 25. Fwd IAT Min
-                0.0,                         # 26. Bwd IAT Total
-                0.0,                         # 27. Bwd IAT Mean
-                0.0,                         # 28. Bwd IAT Std
-                0.0,                         # 29. Bwd IAT Max
-                0.0,                         # 30. Bwd IAT Min
-                psh_flag,                    # 31. Fwd PSH Flags
-                0.0,                         # 32. Bwd PSH Flags
-                urg_flag,                    # 33. Fwd URG Flags
-                0.0,                         # 34. Bwd URG Flags
-                20.0,                        # 35. Fwd Header Length
-                0.0,                         # 36. Bwd Header Length
-                1.0,                         # 37. Fwd Packets/s
-                0.0,                         # 38. Bwd Packets/s
-                packet_size,                 # 39. Min Packet Length
-                packet_size,                 # 40. Max Packet Length
-                packet_size,                 # 41. Packet Length Mean
-                0.0,                         # 42. Packet Length Std
-                0.0,                         # 43. Packet Length Variance
-                fin_flag,                    # 44. FIN Flag Count
-                syn_flag,                    # 45. SYN Flag Count
-                rst_flag,                    # 46. RST Flag Count
-                psh_flag,                    # 47. PSH Flag Count
-                ack_flag,                    # 48. ACK Flag Count
-                urg_flag,                    # 49. URG Flag Count
-                cwr_flag,                    # 50. CWR Flag Count
-                ece_flag,                    # 51. ECE Flag Count
-                0.0,                         # 52. Down/Up Ratio
-                packet_size,                 # 53. Average Packet Size
-                0.0,                         # 54. Avg Fwd Segment Size
-                0.0,                         # 55. Avg Bwd Segment Size
-                0.0,                         # 56. Fwd Avg Bytes/Bulk
-                0.0,                         # 57. Fwd Avg Packets/Bulk
-                0.0,                         # 58. Fwd Avg Bulk Rate
-                0.0,                         # 59. Bwd Avg Bytes/Bulk
-                0.0,                         # 60. Bwd Avg Packets/Bulk
-                0.0,                         # 61. Bwd Avg Bulk Rate
-                1.0,                         # 62. Subflow Fwd Packets
-                packet_size,                 # 63. Subflow Fwd Bytes
-                0.0,                         # 64. Subflow Bwd Packets
-                0.0,                         # 65. Subflow Bwd Bytes
-                65535.0,                     # 66. Init_Win_bytes_forward
-                0.0,                         # 67. Init_Win_bytes_backward
-                1.0,                         # 68. act_data_pkt_fwd
-                20.0,                        # 69. min_seg_size_forward
-                0.0,                         # 70. Active Mean
-                0.0,                         # 71. Active Std
-                0.0,                         # 72. Active Max
-                0.0,                         # 73. Active Min
-                0.0,                         # 74. Idle Mean
-                0.0,                         # 75. Idle Std
-                0.0,                         # 76. Idle Max
-                0.0,                         # 77. Idle Min
+                1.0,                         # Flow Duration
+                packet_size,                 # Fwd Packet Length Max
+                packet_size,                 # Fwd Packet Length Min
+                packet_size,                 # Fwd Packet Length Mean
+                0.0,                         # Fwd Packet Length Std
+                0.0,                         # Bwd Packet Length Max
+                0.0,                         # Bwd Packet Length Min
+                0.0,                         # Bwd Packet Length Mean
+                0.0,                         # Bwd Packet Length Std
+                packet_size,                 # Flow Bytes/s
+                1.0,                         # Flow Packets/s
+                0.0,                         # Flow IAT Mean
+                0.0,                         # Flow IAT Std
+                0.0,                         # Flow IAT Max
+                0.0,                         # Flow IAT Min
+                0.0,                         # Fwd IAT Mean
+                0.0,                         # Fwd IAT Std
+                0.0,                         # Fwd IAT Max
+                0.0,                         # Fwd IAT Min
+                0.0,                         # Bwd IAT Mean
+                0.0,                         # Bwd IAT Std
+                0.0,                         # Bwd IAT Max
+                0.0,                         # Bwd IAT Min
+                fin_flag,                    # FIN Flag Count
+                syn_flag,                    # SYN Flag Count
+                rst_flag,                    # RST Flag Count
+                psh_flag,                    # PSH Flag Count
+                ack_flag,                    # ACK Flag Count
+                urg_flag,                    # URG Flag Count
+                ece_flag,                    # ECE Flag Count
+                cwr_flag,                    # CWR Flag Count
+                psh_flag,                    # Fwd PSH Flags
+                0.0,                         # Bwd PSH Flags
+                urg_flag,                    # Fwd URG Flags
+                0.0,                         # Bwd URG Flags
+                20.0,                        # Fwd Header Length
+                0.0,                         # Bwd Header Length
+                packet_size,                 # Packet Length Mean
+                0.0,                         # Packet Length Std
+                0.0,                         # Packet Length Variance
+                0.0,                         # Down/Up Ratio
+                packet_size,                 # Average Packet Size
             ]
 
             X = np.array(feature_vector, dtype=np.float32).reshape(1, -1)
@@ -238,6 +198,9 @@ class RLDetectionService:
                     X = self.scaler.transform(X)
                 except Exception as e:
                     logger.warning(f"Scaler transform failed: {e}, using raw features")
+            else:
+                # Apply simple normalization as fallback
+                X = (X - np.mean(X)) / (np.std(X) + 1e-10)
 
             return X
 
