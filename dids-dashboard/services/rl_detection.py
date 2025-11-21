@@ -73,9 +73,35 @@ class RLDetectionService:
                 )
                 return False
 
+            # Load feature names FIRST (to validate model compatibility)
+            features_file = self.model_path / "feature_names.json"
+            if features_file.exists():
+                with open(features_file, "r") as f:
+                    self.feature_names = json.load(f)
+                logger.info(f"✓ Loaded {len(self.feature_names)} feature names")
+
+            expected_features = len(self.feature_names) if self.feature_names else 42
+
             # Load RL model
             self.rl_model = keras.models.load_model(str(model_file))
             logger.info(f"✓ Loaded RL model: {model_file.name}")
+
+            # Validate model input shape matches feature count
+            try:
+                model_input_shape = self.rl_model.input_shape
+                if model_input_shape and len(model_input_shape) > 1:
+                    model_expected_features = model_input_shape[-1]
+                    if model_expected_features != expected_features:
+                        logger.error(
+                            f"⚠️  RL model feature mismatch! Model expects {model_expected_features} "
+                            f"features but feature_names.json has {expected_features}. "
+                            f"RL detection disabled until model is retrained."
+                        )
+                        self.rl_model = None
+                        return False
+                    logger.info(f"✓ Model input shape validated: {model_expected_features} features")
+            except Exception as e:
+                logger.warning(f"Could not validate model input shape: {e}")
 
             # Load scaler (from same directory as model)
             scaler_file = self.model_path / "scaler.pkl"
@@ -83,13 +109,6 @@ class RLDetectionService:
                 with open(scaler_file, "rb") as f:
                     self.scaler = pickle.load(f)
                 logger.info("✓ Loaded feature scaler")
-
-            # Load feature names (from same directory as model)
-            features_file = self.model_path / "feature_names.json"
-            if features_file.exists():
-                with open(features_file, "r") as f:
-                    self.feature_names = json.load(f)
-                logger.info(f"✓ Loaded {len(self.feature_names)} feature names")
 
             logger.info("RL Detection Service initialized successfully")
             return True
