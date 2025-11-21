@@ -629,13 +629,9 @@ class PacketCaptureService:
                         "action": "blocked" if ai_confidence > 80 else "alert"
                     })
 
-                    # Log to threat service for dashboard
-                    if self.threat_service:
-                        self.threat_service.log_threat(
-                            f"AI: {ai_attack_type} ({ai_confidence}%)",
-                            src, dst,
-                            {"confidence": ai_confidence, "detection_method": "ai", "simulated": True}
-                        )
+                    # NOTE: Do NOT log to threat_service here - ai_service.detect_threat()
+                    # already stores the detection in ai_service.detections which is
+                    # fetched separately by /api/ai-detections and /api/combined-threats
 
                     logger.info(f"[AI] Detected: {ai_attack_type} ({ai_confidence}% confidence)")
 
