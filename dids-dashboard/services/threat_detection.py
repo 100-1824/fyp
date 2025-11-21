@@ -357,8 +357,8 @@ class ThreatDetectionService:
 
         self.signature_detections.append(detection)
 
-        # Keep only recent detections
-        max_detections = getattr(self.config, "THREAT_DETECTION_BUFFER", 20) * 10
+        # Keep only recent detections (increased buffer for testing)
+        max_detections = getattr(self.config, "THREAT_DETECTION_BUFFER", 500)
         if len(self.signature_detections) > max_detections:
             self.signature_detections = self.signature_detections[-max_detections:]
 

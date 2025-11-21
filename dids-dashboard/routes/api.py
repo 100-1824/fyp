@@ -58,7 +58,8 @@ def init_api_routes(app, packet_service, threat_service, ai_service=None):
     @login_required
     def threats():
         """Get recent threat detections (signature-based)"""
-        return jsonify(threat_service.get_recent_threats(limit=20))
+        limit = request.args.get("limit", 100, type=int)
+        return jsonify(threat_service.get_recent_threats(limit=limit))
 
     @api_bp.route("/threat-stats")
     @login_required
@@ -103,17 +104,18 @@ def init_api_routes(app, packet_service, threat_service, ai_service=None):
     @login_required
     def combined_threats():
         """Get combined threats from both signature and AI detection"""
+        limit = request.args.get("limit", 100, type=int)
         combined = []
 
         # Get signature-based threats
-        sig_threats = threat_service.get_recent_threats(limit=20)
+        sig_threats = threat_service.get_recent_threats(limit=limit)
         for threat in sig_threats:
             threat["detection_method"] = "signature"
             combined.append(threat)
 
         # Get AI-based threats
         if ai_service and ai_service.is_ready():
-            ai_threats = ai_service.get_recent_detections(limit=20)
+            ai_threats = ai_service.get_recent_detections(limit=limit)
             for threat in ai_threats:
                 threat["detection_method"] = "ai"
                 combined.append(threat)
@@ -121,7 +123,7 @@ def init_api_routes(app, packet_service, threat_service, ai_service=None):
         # Sort by timestamp (newest first)
         combined.sort(key=lambda x: x["timestamp"], reverse=True)
 
-        return jsonify(combined[:30])  # Return top 30
+        return jsonify(combined[:limit])
 
     @api_bp.route("/capture/status")
     @login_required
