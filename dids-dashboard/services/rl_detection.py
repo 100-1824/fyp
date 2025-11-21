@@ -40,6 +40,11 @@ class RLDetectionService:
         # Action mapping
         self.action_map = {0: "allow", 1: "alert", 2: "block"}
 
+        # Confidence thresholds to reduce false positives
+        # If confidence is below these thresholds, downgrade the action
+        self.block_threshold = 0.70  # Minimum confidence to block (70%)
+        self.alert_threshold = 0.50  # Minimum confidence to alert (50%)
+
         # Detection tracking
         self.detections = []
         self.actions_taken = {"allow": 0, "alert": 0, "block": 0}
@@ -289,6 +294,30 @@ class RLDetectionService:
             softmax_probs = exp_q / np.sum(exp_q)
             confidence = softmax_probs[action_id]
 
+            # Apply confidence thresholds to reduce false positives
+            # Downgrade action if confidence is too low
+            original_action = action
+            if action == "block" and confidence < self.block_threshold:
+                # Confidence too low to block - downgrade to alert or allow
+                if confidence >= self.alert_threshold:
+                    action = "alert"
+                    action_id = 1
+                else:
+                    action = "allow"
+                    action_id = 0
+                logger.debug(
+                    f"RL action downgraded: {original_action} -> {action} "
+                    f"(confidence {confidence*100:.1f}% < threshold {self.block_threshold*100:.0f}%)"
+                )
+            elif action == "alert" and confidence < self.alert_threshold:
+                # Confidence too low to alert - downgrade to allow
+                action = "allow"
+                action_id = 0
+                logger.debug(
+                    f"RL action downgraded: {original_action} -> {action} "
+                    f"(confidence {confidence*100:.1f}% < threshold {self.alert_threshold*100:.0f}%)"
+                )
+
             # Log Q-values periodically for debugging (every 100 decisions)
             if self.decisions_made % 100 == 0:
                 logger.info(
@@ -416,6 +445,47 @@ class RLDetectionService:
             "recent_detections": len(self.detections),
             "rl_model_loaded": self.rl_model is not None,
             "scaler_type": scaler_status,
+            "block_threshold": self.block_threshold,
+            "alert_threshold": self.alert_threshold,
+        }
+
+    def set_block_threshold(self, threshold: float) -> bool:
+        """
+        Set minimum confidence threshold for blocking actions.
+
+        Args:
+            threshold: Value between 0.0 and 1.0
+
+        Returns:
+            True if successful, False otherwise
+        """
+        if 0.0 <= threshold <= 1.0:
+            self.block_threshold = threshold
+            logger.info(f"RL block threshold set to {threshold*100:.0f}%")
+            return True
+        return False
+
+    def set_alert_threshold(self, threshold: float) -> bool:
+        """
+        Set minimum confidence threshold for alert actions.
+
+        Args:
+            threshold: Value between 0.0 and 1.0
+
+        Returns:
+            True if successful, False otherwise
+        """
+        if 0.0 <= threshold <= 1.0:
+            self.alert_threshold = threshold
+            logger.info(f"RL alert threshold set to {threshold*100:.0f}%")
+            return True
+        return False
+
+    def get_thresholds(self) -> Dict[str, float]:
+        """Get current confidence thresholds"""
+        return {
+            "block_threshold": self.block_threshold,
+            "alert_threshold": self.alert_threshold,
         }
 
     def get_recent_decisions(self, limit: int = 20) -> list:

@@ -257,6 +257,62 @@ def init_api_routes(app, packet_service, threat_service, ai_service=None, rl_ser
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 400
 
+    @api_bp.route("/rl-threshold", methods=["GET", "POST"])
+    @login_required
+    def rl_threshold():
+        """Get or set RL detection confidence thresholds"""
+        if not rl_service or not rl_service.is_ready():
+            return jsonify({"success": False, "error": "RL service not available"}), 400
+
+        if request.method == "GET":
+            return jsonify({
+                "success": True,
+                "thresholds": rl_service.get_thresholds()
+            })
+
+        try:
+            data = request.get_json()
+            results = {"success": True, "updated": {}}
+
+            # Update block threshold if provided
+            if "block_threshold" in data:
+                block_val = float(data["block_threshold"])
+                if rl_service.set_block_threshold(block_val):
+                    results["updated"]["block_threshold"] = block_val
+                else:
+                    return jsonify({"success": False, "error": "Invalid block threshold (must be 0.0-1.0)"}), 400
+
+            # Update alert threshold if provided
+            if "alert_threshold" in data:
+                alert_val = float(data["alert_threshold"])
+                if rl_service.set_alert_threshold(alert_val):
+                    results["updated"]["alert_threshold"] = alert_val
+                else:
+                    return jsonify({"success": False, "error": "Invalid alert threshold (must be 0.0-1.0)"}), 400
+
+            results["thresholds"] = rl_service.get_thresholds()
+            return jsonify(results)
+
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 400
+
+    @api_bp.route("/detection-thresholds", methods=["GET"])
+    @login_required
+    def get_detection_thresholds():
+        """Get all detection thresholds (AI and RL)"""
+        thresholds = {
+            "ai": {
+                "enabled": ai_service is not None and ai_service.is_ready(),
+                "confidence_threshold": ai_service.confidence_threshold if ai_service else 0.50,
+            },
+            "rl": {
+                "enabled": rl_service is not None and rl_service.is_ready(),
+                "block_threshold": rl_service.block_threshold if rl_service else 0.70,
+                "alert_threshold": rl_service.alert_threshold if rl_service else 0.50,
+            }
+        }
+        return jsonify(thresholds)
+
     @api_bp.route("/detection-overview")
     @login_required
     def detection_overview():
