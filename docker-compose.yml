@@ -199,7 +199,7 @@ services:
         condition: service_healthy
 
   # ============================================================================
-  # Threat Intelligence Service
+  # Threat Intelligence Service (IBM X-Force & AlienVault OTX)
   # ============================================================================
 
   threat-intel:
@@ -210,15 +210,27 @@ services:
     environment:
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      UPDATE_INTERVAL: ${TI_UPDATE_INTERVAL:-3600}
-      FEED_SOURCES: ${TI_FEED_SOURCES:-default}
+      # IBM X-Force Exchange API credentials
+      XFORCE_API_KEY: ${XFORCE_API_KEY:-}
+      XFORCE_API_PASSWORD: ${XFORCE_API_PASSWORD:-}
+      # AlienVault OTX API credentials
+      OTX_API_KEY: ${OTX_API_KEY:-}
+      # Service configuration
+      THREAT_INTEL_PORT: 5005
+      LOG_LEVEL: INFO
+      FLASK_ENV: production
     ports:
-      - "8002:8000"
+      - "5005:5005"
     networks:
       - dids-network
     depends_on:
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # ============================================================================
   # Dashboard Backend (API)

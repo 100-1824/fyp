@@ -44,6 +44,9 @@ def get_microservice_url(service_name: str) -> str:
         ),
         "ai": current_app.config.get("AI_DETECTION_URL", "http://localhost:5003"),
         "rl": current_app.config.get("RL_DETECTION_URL", "http://localhost:5004"),
+        "threat_intel": current_app.config.get(
+            "THREAT_INTEL_URL", "http://localhost:5005"
+        ),
     }
     return urls.get(service_name, "http://localhost:5000")
 
@@ -454,6 +457,248 @@ def get_signatures():
         return jsonify({"error": str(e)}), 500
 
 
+# ==================== THREAT INTELLIGENCE ====================
+
+
+@dashboard_api.route("/threat-intel/lookup/ip/<ip>", methods=["GET"])
+@login_required
+def lookup_ip_reputation(ip: str):
+    """Look up IP reputation from threat intelligence sources (IBM X-Force & AlienVault OTX)"""
+    try:
+        threat_intel_url = get_microservice_url("threat_intel")
+        response = requests.get(f"{threat_intel_url}/lookup/ip/{ip}", timeout=15)
+
+        if response.status_code == 200:
+            return jsonify(response.json()), 200
+        else:
+            return jsonify({"error": "Failed to lookup IP reputation"}), 503
+
+    except Exception as e:
+        logger.error(f"Error looking up IP reputation: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@dashboard_api.route("/threat-intel/lookup/url", methods=["POST"])
+@login_required
+def lookup_url_reputation():
+    """Look up URL reputation from threat intelligence sources"""
+    try:
+        data = request.get_json()
+        url = data.get("url")
+
+        if not url:
+            return jsonify({"error": "URL required"}), 400
+
+        threat_intel_url = get_microservice_url("threat_intel")
+        response = requests.post(
+            f"{threat_intel_url}/lookup/url", json={"url": url}, timeout=15
+        )
+
+        if response.status_code == 200:
+            return jsonify(response.json()), 200
+        else:
+            return jsonify({"error": "Failed to lookup URL reputation"}), 503
+
+    except Exception as e:
+        logger.error(f"Error looking up URL reputation: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@dashboard_api.route("/threat-intel/lookup/domain/<domain>", methods=["GET"])
+@login_required
+def lookup_domain_reputation(domain: str):
+    """Look up domain reputation from AlienVault OTX"""
+    try:
+        threat_intel_url = get_microservice_url("threat_intel")
+        response = requests.get(f"{threat_intel_url}/lookup/domain/{domain}", timeout=15)
+
+        if response.status_code == 200:
+            return jsonify(response.json()), 200
+        else:
+            return jsonify({"error": "Failed to lookup domain reputation"}), 503
+
+    except Exception as e:
+        logger.error(f"Error looking up domain reputation: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@dashboard_api.route("/threat-intel/lookup/hash/<file_hash>", methods=["GET"])
+@login_required
+def lookup_file_hash(file_hash: str):
+    """Look up file hash from threat intelligence sources"""
+    try:
+        threat_intel_url = get_microservice_url("threat_intel")
+        response = requests.get(f"{threat_intel_url}/lookup/hash/{file_hash}", timeout=15)
+
+        if response.status_code == 200:
+            return jsonify(response.json()), 200
+        else:
+            return jsonify({"error": "Failed to lookup file hash"}), 503
+
+    except Exception as e:
+        logger.error(f"Error looking up file hash: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@dashboard_api.route("/threat-intel/lookup/bulk/ips", methods=["POST"])
+@login_required
+def bulk_lookup_ips():
+    """Bulk lookup for multiple IPs"""
+    try:
+        data = request.get_json()
+        ips = data.get("ips", [])
+
+        if not ips:
+            return jsonify({"error": "IPs list required"}), 400
+
+        if len(ips) > 100:
+            return jsonify({"error": "Maximum 100 IPs per request"}), 400
+
+        threat_intel_url = get_microservice_url("threat_intel")
+        response = requests.post(
+            f"{threat_intel_url}/lookup/bulk/ips", json={"ips": ips}, timeout=60
+        )
+
+        if response.status_code == 200:
+            return jsonify(response.json()), 200
+        else:
+            return jsonify({"error": "Failed to perform bulk lookup"}), 503
+
+    except Exception as e:
+        logger.error(f"Error performing bulk IP lookup: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@dashboard_api.route("/threat-intel/quick-check/<ip>", methods=["GET"])
+@login_required
+def quick_check_ip(ip: str):
+    """Quick check if IP is in local malicious cache"""
+    try:
+        threat_intel_url = get_microservice_url("threat_intel")
+        response = requests.get(f"{threat_intel_url}/check/quick/{ip}", timeout=5)
+
+        if response.status_code == 200:
+            return jsonify(response.json()), 200
+        else:
+            return jsonify({"error": "Failed to quick check IP"}), 503
+
+    except Exception as e:
+        logger.error(f"Error quick checking IP: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@dashboard_api.route("/threat-intel/pulses", methods=["GET"])
+@login_required
+def get_threat_pulses():
+    """Get recent OTX threat intelligence pulses"""
+    try:
+        limit = request.args.get("limit", 10, type=int)
+        threat_intel_url = get_microservice_url("threat_intel")
+        response = requests.get(
+            f"{threat_intel_url}/pulses?limit={limit}", timeout=15
+        )
+
+        if response.status_code == 200:
+            return jsonify(response.json()), 200
+        else:
+            return jsonify({"error": "Failed to get threat pulses"}), 503
+
+    except Exception as e:
+        logger.error(f"Error getting threat pulses: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@dashboard_api.route("/threat-intel/indicators", methods=["GET"])
+@login_required
+def get_threat_indicators():
+    """Get all cached malicious indicators"""
+    try:
+        threat_intel_url = get_microservice_url("threat_intel")
+        response = requests.get(f"{threat_intel_url}/indicators", timeout=10)
+
+        if response.status_code == 200:
+            return jsonify(response.json()), 200
+        else:
+            return jsonify({"error": "Failed to get indicators"}), 503
+
+    except Exception as e:
+        logger.error(f"Error getting threat indicators: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@dashboard_api.route("/threat-intel/indicators/import", methods=["POST"])
+@login_required
+@admin_required
+def import_threat_indicators():
+    """Import threat indicators into local cache (admin only)"""
+    try:
+        data = request.get_json()
+
+        threat_intel_url = get_microservice_url("threat_intel")
+        response = requests.post(
+            f"{threat_intel_url}/indicators/import", json=data, timeout=10
+        )
+
+        if response.status_code == 200:
+            return jsonify(response.json()), 200
+        else:
+            return jsonify({"error": "Failed to import indicators"}), 503
+
+    except Exception as e:
+        logger.error(f"Error importing indicators: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@dashboard_api.route("/threat-intel/statistics", methods=["GET"])
+@login_required
+def get_threat_intel_statistics():
+    """Get threat intelligence service statistics"""
+    try:
+        threat_intel_url = get_microservice_url("threat_intel")
+        response = requests.get(f"{threat_intel_url}/statistics", timeout=10)
+
+        if response.status_code == 200:
+            return jsonify(response.json()), 200
+        else:
+            return jsonify({"error": "Failed to get statistics"}), 503
+
+    except Exception as e:
+        logger.error(f"Error getting threat intel statistics: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@dashboard_api.route("/threat-intel/health", methods=["GET"])
+@login_required
+def get_threat_intel_health():
+    """Get threat intelligence service health status"""
+    try:
+        threat_intel_url = get_microservice_url("threat_intel")
+        response = requests.get(f"{threat_intel_url}/health", timeout=5)
+
+        if response.status_code == 200:
+            return jsonify(response.json()), 200
+        else:
+            return (
+                jsonify(
+                    {
+                        "service": "threat-intel",
+                        "status": "unhealthy",
+                        "error": "Service unavailable",
+                    }
+                ),
+                503,
+            )
+
+    except Exception as e:
+        logger.error(f"Error checking threat intel health: {e}")
+        return (
+            jsonify(
+                {"service": "threat-intel", "status": "unhealthy", "error": str(e)}
+            ),
+            503,
+        )
+
+
 # ==================== REPORTS & ANALYTICS ====================
 
 
@@ -687,6 +932,19 @@ def get_api_docs():
                 "GET /config/whitelist": "Get IP whitelist",
                 "POST /config/whitelist": "Add IP to whitelist (admin only)",
                 "GET /config/signatures": "Get loaded threat signatures",
+            },
+            "Threat Intelligence": {
+                "GET /threat-intel/lookup/ip/<ip>": "Look up IP reputation (IBM X-Force & AlienVault OTX)",
+                "POST /threat-intel/lookup/url": "Look up URL reputation",
+                "GET /threat-intel/lookup/domain/<domain>": "Look up domain reputation",
+                "GET /threat-intel/lookup/hash/<hash>": "Look up file hash",
+                "POST /threat-intel/lookup/bulk/ips": "Bulk lookup for multiple IPs",
+                "GET /threat-intel/quick-check/<ip>": "Quick check if IP is in malicious cache",
+                "GET /threat-intel/pulses": "Get recent OTX threat intelligence pulses",
+                "GET /threat-intel/indicators": "Get all cached malicious indicators",
+                "POST /threat-intel/indicators/import": "Import threat indicators (admin only)",
+                "GET /threat-intel/statistics": "Get threat intelligence statistics",
+                "GET /threat-intel/health": "Get threat intelligence service health",
             },
             "Reports": {
                 "GET /reports/summary": "Get summary report",

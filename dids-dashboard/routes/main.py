@@ -40,6 +40,12 @@ def init_main_routes(app, mongo, user_service):
         """Analytics dashboard page"""
         return render_template("analytics.html")
 
+    @main_bp.route("/threat-intel")
+    @login_required
+    def threat_intel():
+        """Threat Intelligence dashboard page (IBM X-Force & AlienVault OTX)"""
+        return render_template("threat_intel.html")
+
     @main_bp.route("/settings")
     @login_required
     def settings():

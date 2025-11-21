@@ -55,6 +55,21 @@ class Config:
     )
     AI_DETECTION_URL = os.environ.get("AI_DETECTION_URL") or "http://localhost:5003"
     RL_DETECTION_URL = os.environ.get("RL_DETECTION_URL") or "http://localhost:5004"
+    THREAT_INTEL_URL = os.environ.get("THREAT_INTEL_URL") or "http://localhost:5005"
+
+    # Threat Intelligence API Configuration
+    # IBM X-Force Exchange API (https://exchange.xforce.ibmcloud.com/)
+    XFORCE_API_KEY = os.environ.get("XFORCE_API_KEY") or ""
+    XFORCE_API_PASSWORD = os.environ.get("XFORCE_API_PASSWORD") or ""
+
+    # AlienVault OTX API (https://otx.alienvault.com/)
+    OTX_API_KEY = os.environ.get("OTX_API_KEY") or ""
+
+    # Threat Intelligence Settings
+    THREAT_INTEL_CACHE_TTL = int(os.environ.get("THREAT_INTEL_CACHE_TTL") or 3600)
+    THREAT_INTEL_ENABLED = (
+        os.environ.get("THREAT_INTEL_ENABLED", "true").lower() == "true"
+    )
 
 
 class DevelopmentConfig(Config):
