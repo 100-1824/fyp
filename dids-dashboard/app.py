@@ -186,7 +186,7 @@ def create_app(config_name="default"):
     auth_bp = init_auth_routes(app, mongo, bcrypt, user_service)
     main_bp = init_main_routes(app, mongo, user_service)
     admin_bp = init_admin_routes(app, user_service)
-    api_bp = init_api_routes(app, packet_service, threat_service, ai_service)
+    api_bp = init_api_routes(app, packet_service, threat_service, ai_service, rl_service)
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
