@@ -263,6 +263,22 @@ class PacketCaptureService:
                         f"({ai_detection['confidence']}% confidence)"
                     )
 
+        # 3. Check RL-based adaptive response if RL service is available and ready
+        rl_decision = None
+        if self.rl_service and self.rl_service.is_ready():
+            try:
+                # Use RL agent to decide action based on traffic and AI detection
+                rl_decision = self.rl_service.decide_action(packet_info, ai_detection)
+
+                if rl_decision and rl_decision.get("rl_based") and rl_decision.get("action") in ["alert", "block"]:
+                    threat_detected = True
+                    logger.info(
+                        f"🎯 RL Decision: {rl_decision['action']} "
+                        f"({rl_decision.get('confidence', 0):.1f}% confidence)"
+                    )
+            except Exception as e:
+                logger.warning(f"RL decision error: {e}")
+
         # Create packet record
         record = {
             "timestamp": datetime.now().strftime("%H:%M:%S.%f")[:-3],
@@ -273,6 +289,8 @@ class PacketCaptureService:
             "threat": threat_detected,
             "ai_detection": ai_detection["attack_type"] if ai_detection else None,
             "ai_confidence": ai_detection["confidence"] if ai_detection else None,
+            "rl_decision": rl_decision.get("action") if rl_decision and rl_decision.get("rl_based") else None,
+            "rl_confidence": rl_decision.get("confidence") if rl_decision and rl_decision.get("rl_based") else None,
             "signature_detection": signature_detection,
         }
 
