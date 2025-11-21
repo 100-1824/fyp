@@ -59,11 +59,11 @@ class Config:
 
     # Threat Intelligence API Configuration
     # IBM X-Force Exchange API (https://exchange.xforce.ibmcloud.com/)
-    XFORCE_API_KEY = os.environ.get("XFORCE_API_KEY") or ""
-    XFORCE_API_PASSWORD = os.environ.get("XFORCE_API_PASSWORD") or ""
+    XFORCE_API_KEY = os.environ.get("XFORCE_API_KEY") or "842c9565-1f2d-44d8-93b5-19c9e18cb6e1"
+    XFORCE_API_PASSWORD = os.environ.get("XFORCE_API_PASSWORD") or "7667c28e-d88f-4db0-af77-cfe4ae806770"
 
     # AlienVault OTX API (https://otx.alienvault.com/)
-    OTX_API_KEY = os.environ.get("OTX_API_KEY") or ""
+    OTX_API_KEY = os.environ.get("OTX_API_KEY") or "7c7471b24cbd76b9ef0dbb5ba84b941e9f2b51337a6808dd57a9377ce5fea5a0"
 
     # Threat Intelligence Settings
     THREAT_INTEL_CACHE_TTL = int(os.environ.get("THREAT_INTEL_CACHE_TTL") or 3600)

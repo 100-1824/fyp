@@ -7,6 +7,8 @@ from .preprocessing_service import (PreprocessingService,
                                     create_preprocessing_service)
 from .rl_detection import RLDetectionService
 from .threat_detection import ThreatDetectionService
+from .threat_intel_service import (ThreatIntelService, get_threat_intel_service,
+                                   init_threat_intel_service)
 from .user_service import UserService
 
 __all__ = [
@@ -21,4 +23,7 @@ __all__ = [
     "EnhancedFlowTracker",
     "PreprocessingService",
     "create_preprocessing_service",
+    "ThreatIntelService",
+    "get_threat_intel_service",
+    "init_threat_intel_service",
 ]
