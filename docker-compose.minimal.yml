@@ -1,0 +1,45 @@
+version: '3.8'
+
+# Minimal docker-compose for running just the essential database services
+# Run with: docker-compose -f docker-compose.minimal.yml up -d
+
+services:
+  # MongoDB - Main database for dashboard
+  mongodb:
+    image: mongo:6-jammy
+    container_name: dids-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - dids-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis - Caching and message queue
+  redis:
+    image: redis:7-alpine
+    container_name: dids-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - dids-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+networks:
+  dids-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  redis_data:
