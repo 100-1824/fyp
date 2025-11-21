@@ -13,12 +13,13 @@ logger = logging.getLogger(__name__)
 
 
 class PacketCaptureService:
-    """Service for capturing and analyzing network packets with AI detection"""
+    """Service for capturing and analyzing network packets with AI and RL detection"""
 
-    def __init__(self, config, threat_service=None, ai_service=None):
+    def __init__(self, config, threat_service=None, ai_service=None, rl_service=None):
         self.config = config
         self.threat_service = threat_service
         self.ai_service = ai_service
+        self.rl_service = rl_service
 
         # Use get() method for Flask config object with defaults
         self.max_traffic_size = config.get("TRAFFIC_DATA_MAX_SIZE", 1000)
@@ -639,7 +640,36 @@ class PacketCaptureService:
                 logger.warning(f"AI detection error: {e}")
 
         # =====================================================================
-        # 3. THREAT INTELLIGENCE (IBM X-Force & AlienVault OTX)
+        # 3. RL-BASED ADAPTIVE RESPONSE (Double DQN Agent)
+        # =====================================================================
+        rl_decision = None
+        if self.rl_service and self.rl_service.is_ready():
+            try:
+                # Use RL agent to decide action based on traffic and AI detection
+                rl_decision = self.rl_service.decide_action(packet_info, ai_detection_result)
+
+                if rl_decision and rl_decision.get("action") in ["alert", "block"]:
+                    threat_detected = True
+                    rl_action = rl_decision.get("action", "alert")
+                    rl_confidence = rl_decision.get("confidence", 0)
+
+                    detections.append({
+                        "type": "rl",
+                        "method": "RL Adaptive Response",
+                        "action": rl_action,
+                        "confidence": rl_confidence,
+                        "q_values": rl_decision.get("q_values", {}),
+                        "reason": rl_decision.get("reason", "RL agent decision"),
+                        "severity": "high" if rl_action == "block" else "medium"
+                    })
+
+                    logger.info(f"[RL] Decision: {rl_action} ({rl_confidence:.1f}% confidence)")
+
+            except Exception as e:
+                logger.warning(f"RL decision error: {e}")
+
+        # =====================================================================
+        # 4. THREAT INTELLIGENCE (IBM X-Force & AlienVault OTX)
         # =====================================================================
         if self.threat_service and hasattr(self.threat_service, 'threat_intel'):
             try:
@@ -681,7 +711,7 @@ class PacketCaptureService:
                 logger.warning(f"Threat intel check error: {e}")
 
         # =====================================================================
-        # 4. FALLBACK: Log attack_type if specified but no detection triggered
+        # 5. FALLBACK: Log attack_type if specified but no detection triggered
         # =====================================================================
         if attack_type and not detections:
             threat_detected = True
@@ -705,6 +735,8 @@ class PacketCaptureService:
             "detection_methods": [d.get("method") for d in detections],
             "ai_detection": ai_detection_result.get("attack_type") if ai_detection_result else None,
             "ai_confidence": ai_detection_result.get("confidence") if ai_detection_result else None,
+            "rl_decision": rl_decision.get("action") if rl_decision else None,
+            "rl_confidence": rl_decision.get("confidence") if rl_decision else None,
             "signature_detection": signature_detection,
             "threat_intel": threat_intel_result.get("is_malicious") if threat_intel_result else False,
             "attack_type": attack_type or (ai_detection_result.get("attack_type") if ai_detection_result else None),
@@ -720,6 +752,7 @@ class PacketCaptureService:
             "detection_summary": {
                 "signature_based": signature_detection is not None,
                 "ai_detected": ai_detection_result is not None and ai_detection_result.get("attack_type") not in [None, "Benign"],
+                "rl_decision": rl_decision.get("action") if rl_decision else None,
                 "threat_intel_flagged": threat_intel_result.get("is_malicious") if threat_intel_result else False,
                 "total_detections": len(detections)
             },

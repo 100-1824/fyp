@@ -37,11 +37,11 @@ class AIDetectionService:
         # Detection tracking
         self.detections = []
         self.detection_cache = {}  # Cache to prevent duplicate detections
-        self.cache_ttl = 60  # Cache TTL in seconds
+        self.cache_ttl = 10  # Cache TTL in seconds (reduced from 60 for better responsiveness)
 
-        # False positive filtering
-        self.confidence_threshold = 0.75  # Minimum confidence for detection
-        self.consecutive_threshold = 3  # Consecutive detections needed
+        # False positive filtering (lowered thresholds for better detection)
+        self.confidence_threshold = 0.50  # Minimum confidence for detection (was 0.75)
+        self.consecutive_threshold = 1  # Consecutive detections needed (was 3)
         self.detection_tracker = defaultdict(lambda: {"count": 0, "last_seen": None})
 
         # Attack type mapping
@@ -542,8 +542,8 @@ class AIDetectionService:
             if time_diff > 30:  # Reset after 30 seconds
                 tracker["count"] = 1
 
-        # Require multiple consecutive detections for medium confidence
-        if confidence < 0.85 and tracker["count"] < self.consecutive_threshold:
+        # Require multiple consecutive detections only for very low confidence
+        if confidence < 0.60 and tracker["count"] < self.consecutive_threshold:
             return False
 
         # Clean up old trackers

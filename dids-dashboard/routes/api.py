@@ -6,8 +6,12 @@ from flask_login import current_user, login_required
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 
-def init_api_routes(app, packet_service, threat_service, ai_service=None):
-    """Initialize API routes with dependencies including AI service"""
+def init_api_routes(app, packet_service, threat_service, ai_service=None, rl_service=None):
+    """Initialize API routes with dependencies including AI and RL services"""
+
+    # Get RL service from app context if not passed directly
+    if rl_service is None:
+        rl_service = getattr(app, 'rl_service', None)
 
     @api_bp.route("/current_user")
     @login_required
@@ -100,10 +104,34 @@ def init_api_routes(app, packet_service, threat_service, ai_service=None):
             return jsonify(ai_service.get_model_info())
         return jsonify({"model_loaded": False, "error": "AI service not available"})
 
+    @api_bp.route("/rl-stats")
+    @login_required
+    def rl_stats():
+        """Get RL detection statistics"""
+        if rl_service and rl_service.is_ready():
+            return jsonify(rl_service.get_statistics())
+        return jsonify({
+            "total_decisions": 0,
+            "threats_blocked": 0,
+            "alerts_raised": 0,
+            "actions_distribution": {"allow": 0, "alert": 0, "block": 0},
+            "recent_detections": 0,
+            "rl_model_loaded": False,
+        })
+
+    @api_bp.route("/rl-decisions")
+    @login_required
+    def rl_decisions():
+        """Get recent RL decisions"""
+        if rl_service and rl_service.is_ready():
+            limit = request.args.get("limit", 20, type=int)
+            return jsonify(rl_service.get_recent_decisions(limit=limit))
+        return jsonify([])
+
     @api_bp.route("/combined-threats")
     @login_required
     def combined_threats():
-        """Get combined threats from both signature and AI detection"""
+        """Get combined threats from signature, AI, and RL detection"""
         limit = request.args.get("limit", 100, type=int)
         combined = []
 
@@ -119,6 +147,26 @@ def init_api_routes(app, packet_service, threat_service, ai_service=None):
             for threat in ai_threats:
                 threat["detection_method"] = "ai"
                 combined.append(threat)
+
+        # Get RL-based decisions (alerts and blocks)
+        if rl_service and rl_service.is_ready():
+            rl_decisions = rl_service.get_recent_decisions(limit=limit)
+            for decision in rl_decisions:
+                # Convert RL decision to threat format
+                rl_threat = {
+                    "timestamp": decision.get("timestamp", datetime.now().isoformat()),
+                    "source": decision.get("source"),
+                    "destination": decision.get("destination"),
+                    "protocol": decision.get("protocol"),
+                    "signature": f"RL Decision: {decision.get('action', 'unknown').upper()}",
+                    "attack_type": decision.get("reason", "RL Adaptive Response"),
+                    "confidence": decision.get("confidence", 0),
+                    "action": decision.get("action", "alert"),
+                    "detection_method": "rl",
+                    "rl_based": True,
+                    "q_values": decision.get("q_values", {})
+                }
+                combined.append(rl_threat)
 
         # Sort by timestamp (newest first)
         combined.sort(key=lambda x: x["timestamp"], reverse=True)
@@ -227,6 +275,13 @@ def init_api_routes(app, packet_service, threat_service, ai_service=None):
                 "high_confidence": 0,
                 "by_attack_type": {},
             },
+            "rl_based": {
+                "enabled": rl_service is not None and rl_service.is_ready(),
+                "total_decisions": 0,
+                "threats_blocked": 0,
+                "alerts_raised": 0,
+                "actions_distribution": {"allow": 0, "alert": 0, "block": 0},
+            },
         }
 
         if ai_service and ai_service.is_ready():
@@ -237,6 +292,16 @@ def init_api_routes(app, packet_service, threat_service, ai_service=None):
                 "high_confidence": ai_stats.get("high_confidence_count", 0),
                 "by_attack_type": ai_stats.get("by_attack_type", {}),
                 "average_confidence": ai_stats.get("average_confidence", 0),
+            }
+
+        if rl_service and rl_service.is_ready():
+            rl_stats = rl_service.get_statistics()
+            overview["rl_based"] = {
+                "enabled": True,
+                "total_decisions": rl_stats.get("total_decisions", 0),
+                "threats_blocked": rl_stats.get("threats_blocked", 0),
+                "alerts_raised": rl_stats.get("alerts_raised", 0),
+                "actions_distribution": rl_stats.get("actions_distribution", {}),
             }
 
         return jsonify(overview)

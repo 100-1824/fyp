@@ -19,6 +19,7 @@ from routes import (init_admin_routes, init_api_routes, init_auth_routes,
 from services import (AIDetectionService, PacketCaptureService,
                       ThreatDetectionService, UserService,
                       init_threat_intel_service)
+from services.rl_detection import RLDetectionService
 from services.rule_engine import RuleEngine
 from services.rule_parser import RuleManager
 
@@ -130,9 +131,25 @@ def create_app(config_name="default"):
         )
         ai_service = None
 
-    # 3. Initialize packet capture service (depends on threat and AI services)
+    # 2.5. Initialize RL detection service
+    app.logger.info("2.5️⃣  Initializing RL-Powered Threat Response...")
+    rl_model_path = os.path.join(os.path.dirname(__file__), "model")
+    rl_service = RLDetectionService(app.config, model_path=rl_model_path)
+
+    if rl_service.is_ready():
+        app.logger.info("✓ RL detection service initialized successfully")
+        rl_stats = rl_service.get_statistics()
+        app.logger.info(f"   🤖 RL model loaded: {rl_stats.get('rl_model_loaded', False)}")
+        app.logger.info(f"   🎯 Actions: allow, alert, block")
+    else:
+        app.logger.warning(
+            "⚠️  RL detection service not ready - will use basic policies"
+        )
+        rl_service = None
+
+    # 3. Initialize packet capture service (depends on threat, AI, and RL services)
     app.logger.info("3️⃣  Initializing Packet Capture Service...")
-    packet_service = PacketCaptureService(app.config, threat_service, ai_service)
+    packet_service = PacketCaptureService(app.config, threat_service, ai_service, rl_service)
     app.logger.info("✓ Packet capture service ready")
 
     # 4. Initialize user service
@@ -159,6 +176,7 @@ def create_app(config_name="default"):
     app.packet_service = packet_service
     app.threat_service = threat_service
     app.ai_service = ai_service
+    app.rl_service = rl_service
     app.user_service = user_service
     app.rule_manager = rule_manager
     app.rule_engine = rule_engine

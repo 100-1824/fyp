@@ -6,6 +6,7 @@ Integrates trained RL agent for intelligent threat response
 import json
 import logging
 import pickle
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -68,7 +69,7 @@ class RLDetectionService:
 
             if not model_file.exists():
                 logger.warning(
-                    "RL model not found. RL detection will not be available."
+                    f"RL model not found at {model_file}. RL detection will not be available."
                 )
                 return False
 
@@ -76,15 +77,15 @@ class RLDetectionService:
             self.rl_model = keras.models.load_model(str(model_file))
             logger.info(f"✓ Loaded RL model: {model_file.name}")
 
-            # Load scaler (from ML training)
-            scaler_file = Path("dids-dashboard/model/scaler.pkl")
+            # Load scaler (from same directory as model)
+            scaler_file = self.model_path / "scaler.pkl"
             if scaler_file.exists():
                 with open(scaler_file, "rb") as f:
                     self.scaler = pickle.load(f)
                 logger.info("✓ Loaded feature scaler")
 
-            # Load feature names
-            features_file = Path("dids-dashboard/model/feature_names.json")
+            # Load feature names (from same directory as model)
+            features_file = self.model_path / "feature_names.json"
             if features_file.exists():
                 with open(features_file, "r") as f:
                     self.feature_names = json.load(f)
@@ -204,6 +205,7 @@ class RLDetectionService:
 
             # Create decision record
             decision = {
+                "timestamp": datetime.now().isoformat(),
                 "action": action,
                 "confidence": float(confidence * 100),
                 "q_values": {

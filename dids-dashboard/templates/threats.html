@@ -945,6 +945,7 @@
                         <select id="filter-detection" style="padding: 6px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px;">
                             <option value="">All Detection Types</option>
                             <option value="ai">AI Only</option>
+                            <option value="rl">RL Only</option>
                             <option value="signature">Signature Only</option>
                         </select>
                         <select id="filter-action" style="padding: 6px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px;">
@@ -1290,7 +1291,8 @@
             filteredData = currentThreatsData.filter(t => {
                 // Detection filter
                 if (detectionFilter === 'ai' && t.detection_method !== 'ai') return false;
-                if (detectionFilter === 'signature' && t.detection_method === 'ai') return false;
+                if (detectionFilter === 'rl' && t.detection_method !== 'rl') return false;
+                if (detectionFilter === 'signature' && (t.detection_method === 'ai' || t.detection_method === 'rl')) return false;
 
                 // Action filter
                 if (actionFilter && t.action !== actionFilter) return false;
@@ -1319,9 +1321,9 @@
                 return;
             }
 
-            const sigThreats = filteredData.filter(t => t.detection_method !== 'ai').length;
-            const aiThreats = filteredData.filter(t => t.detection_method === 'ai').length;
-            const blockedThreats = filteredData.filter(t => t.action === 'blocked').length;
+            const sigThreats = filteredData.filter(t => t.detection_method === 'signature' || !t.detection_method).length;
+            const aiThreats = filteredData.filter(t => t.detection_method === 'ai' || t.detection_method === 'rl').length;
+            const blockedThreats = filteredData.filter(t => t.action === 'blocked' || t.action === 'block').length;
 
             animateNumber('total-threats', filteredData.length);
             animateNumber('sig-threats', sigThreats);
@@ -1332,9 +1334,14 @@
             filteredData.forEach(t => {
                 const row = tbody.insertRow();
                 const timestamp = new Date(t.timestamp).toLocaleString();
-                const detectionBadge = t.detection_method === 'ai'
-                    ? '<span class="detection-badge detection-ai">AI</span>'
-                    : '<span class="detection-badge detection-sig">SIG</span>';
+                let detectionBadge;
+                if (t.detection_method === 'ai') {
+                    detectionBadge = '<span class="detection-badge detection-ai">AI</span>';
+                } else if (t.detection_method === 'rl') {
+                    detectionBadge = '<span class="detection-badge detection-ai">RL</span>';
+                } else {
+                    detectionBadge = '<span class="detection-badge detection-sig">SIG</span>';
+                }
                 const threatName = t.signature || t.attack_type || 'Unknown';
                 const confidence = t.confidence ? `${t.confidence}%` : '-';
 
@@ -1429,10 +1436,21 @@
             const detectionMethod = threat.detection_method || 'signature';
             const time = new Date(threat.timestamp).toLocaleTimeString();
 
-            const methodClass = detectionMethod === 'ai' ? 'ai' :
-                               (threatType.includes('INTEL') ? 'intel' : 'sig');
-            const methodLabel = detectionMethod === 'ai' ? 'AI/ML' :
-                               (threatType.includes('INTEL') ? 'THREAT INTEL' : 'SIGNATURE');
+            // Determine method class and label for AI, RL, Threat Intel, or Signature
+            let methodClass, methodLabel;
+            if (detectionMethod === 'ai') {
+                methodClass = 'ai';
+                methodLabel = 'AI/ML';
+            } else if (detectionMethod === 'rl') {
+                methodClass = 'ai';  // Use AI styling for RL
+                methodLabel = 'RL AGENT';
+            } else if (threatType.includes('INTEL')) {
+                methodClass = 'intel';
+                methodLabel = 'THREAT INTEL';
+            } else {
+                methodClass = 'sig';
+                methodLabel = 'SIGNATURE';
+            }
 
             const notification = document.createElement('div');
             notification.className = `threat-notification ${severity}`;
@@ -1575,14 +1593,26 @@
         }
 
         // Override updateThreats to also check for new notifications
+        let isInitialLoad = true;
         const originalUpdateThreats = updateThreats;
         updateThreats = async function() {
             try {
                 const data = await fetch('/api/combined-threats').then(r => r.json());
 
-                // Check for new threats (only after initial load)
-                if (previousThreatCount > 0) {
-                    checkNewThreats(data.slice(0, data.length - previousThreatCount));
+                // On initial load, mark all existing threats as seen
+                if (isInitialLoad) {
+                    data.forEach(threat => seenThreatIds.add(getThreatId(threat)));
+                    isInitialLoad = false;
+                    previousThreatCount = data.length;
+                } else {
+                    // Check for new threats (only after initial load)
+                    if (data.length > 0) {
+                        // Find threats that aren't in our seen set
+                        const newThreats = data.filter(t => !seenThreatIds.has(getThreatId(t)));
+                        if (newThreats.length > 0) {
+                            checkNewThreats(newThreats);
+                        }
+                    }
                 }
 
                 currentThreatsData = data;
@@ -1601,14 +1631,6 @@
                 console.error('Error updating threats:', e);
             }
         };
-
-        // Initialize seen threats on first load
-        setTimeout(async () => {
-            try {
-                const data = await fetch('/api/combined-threats').then(r => r.json());
-                data.forEach(threat => seenThreatIds.add(getThreatId(threat)));
-            } catch(e) {}
-        }, 100);
     </script>
 </body>
 </html>
