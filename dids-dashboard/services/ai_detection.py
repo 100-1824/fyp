@@ -190,36 +190,73 @@ class AIDetectionService:
     ) -> Optional[Dict[str, float]]:
         """
         Extract network flow features from packet data.
+        Feature names MUST match exactly with feature_names.json for model prediction.
 
         Args:
             packet_data: Dictionary containing packet information
 
         Returns:
-            Dictionary of extracted features
+            Dictionary of extracted features with correct feature names
         """
         try:
-            # Extract basic features from packet
+            # Get packet characteristics
+            packet_size = float(packet_data.get("size", 64))
+
+            # Extract TCP flags from packet data
+            syn_flag = float(packet_data.get("syn", 0))
+            ack_flag = float(packet_data.get("ack", 0))
+            psh_flag = float(packet_data.get("psh", 0))
+            rst_flag = float(packet_data.get("rst", 0))
+            fin_flag = float(packet_data.get("fin", 0))
+            urg_flag = float(packet_data.get("urg", 0))
+            ece_flag = float(packet_data.get("ece", 0))
+            cwr_flag = float(packet_data.get("cwr", 0))
+
+            # Feature names must match exactly what the model expects
+            # These are the 42 features from feature_names.json
             features = {
-                # Flow identifiers
-                "src_ip": packet_data.get("source", "0.0.0.0"),
-                "dst_ip": packet_data.get("destination", "0.0.0.0"),
-                "protocol": self._encode_protocol(packet_data.get("protocol", "TCP")),
-                # Packet characteristics
-                "packet_length": float(packet_data.get("size", 0)),
-                "header_length": 20.0,  # Default IP header
-                "payload_length": float(packet_data.get("size", 0)) - 20.0,
-                # Port information (if available)
-                "src_port": float(packet_data.get("src_port", 0)),
-                "dst_port": float(packet_data.get("dst_port", 0)),
-                # Flags (if available)
-                "flag_syn": float(packet_data.get("syn", 0)),
-                "flag_ack": float(packet_data.get("ack", 0)),
-                "flag_psh": float(packet_data.get("psh", 0)),
-                "flag_rst": float(packet_data.get("rst", 0)),
-                "flag_fin": float(packet_data.get("fin", 0)),
-                # Derived features
-                "packets_per_second": 1.0,  # Will be calculated in flow aggregation
-                "bytes_per_second": float(packet_data.get("size", 0)),
+                "Flow Duration": 1.0,
+                "Fwd Packet Length Max": packet_size,
+                "Fwd Packet Length Min": packet_size,
+                "Fwd Packet Length Mean": packet_size,
+                "Fwd Packet Length Std": 0.0,
+                "Bwd Packet Length Max": 0.0,
+                "Bwd Packet Length Min": 0.0,
+                "Bwd Packet Length Mean": 0.0,
+                "Bwd Packet Length Std": 0.0,
+                "Flow Bytes/s": packet_size,
+                "Flow Packets/s": 1.0,
+                "Flow IAT Mean": 0.0,
+                "Flow IAT Std": 0.0,
+                "Flow IAT Max": 0.0,
+                "Flow IAT Min": 0.0,
+                "Fwd IAT Mean": 0.0,
+                "Fwd IAT Std": 0.0,
+                "Fwd IAT Max": 0.0,
+                "Fwd IAT Min": 0.0,
+                "Bwd IAT Mean": 0.0,
+                "Bwd IAT Std": 0.0,
+                "Bwd IAT Max": 0.0,
+                "Bwd IAT Min": 0.0,
+                "FIN Flag Count": fin_flag,
+                "SYN Flag Count": syn_flag,
+                "RST Flag Count": rst_flag,
+                "PSH Flag Count": psh_flag,
+                "ACK Flag Count": ack_flag,
+                "URG Flag Count": urg_flag,
+                "ECE Flag Count": ece_flag,
+                "CWR Flag Count": cwr_flag,
+                "Fwd PSH Flags": psh_flag,
+                "Bwd PSH Flags": 0.0,
+                "Fwd URG Flags": urg_flag,
+                "Bwd URG Flags": 0.0,
+                "Fwd Header Length": 20.0,
+                "Bwd Header Length": 0.0,
+                "Packet Length Mean": packet_size,
+                "Packet Length Std": 0.0,
+                "Packet Length Variance": 0.0,
+                "Down/Up Ratio": 0.0,
+                "Average Packet Size": packet_size,
             }
 
             return features
@@ -233,97 +270,61 @@ class AIDetectionService:
     ) -> Optional[Dict[str, float]]:
         """
         Aggregate features from multiple packets in a flow.
+        Feature names MUST match exactly with feature_names.json for model prediction.
 
         Args:
             flow_key: Unique identifier for flow (src-dst pair)
             window_size: Number of recent packets to consider
 
         Returns:
-            Aggregated feature dictionary
+            Aggregated feature dictionary with correct feature names
         """
         try:
-            # Get recent packets for this flow from traffic data
-            # This would be implemented based on your packet storage
-
-            # For now, return basic aggregated features
+            # Feature names must match exactly what the model was trained on
+            # These are the 42 features from feature_names.json
             aggregated = {
-                "flow_duration": 1.0,
-                "total_fwd_packets": 1.0,
-                "total_bwd_packets": 0.0,
-                "total_length_fwd_packets": 0.0,
-                "total_length_bwd_packets": 0.0,
-                "fwd_packet_length_max": 0.0,
-                "fwd_packet_length_min": 0.0,
-                "fwd_packet_length_mean": 0.0,
-                "fwd_packet_length_std": 0.0,
-                "bwd_packet_length_max": 0.0,
-                "bwd_packet_length_min": 0.0,
-                "bwd_packet_length_mean": 0.0,
-                "bwd_packet_length_std": 0.0,
-                "flow_bytes_per_second": 0.0,
-                "flow_packets_per_second": 1.0,
-                "flow_iat_mean": 0.0,
-                "flow_iat_std": 0.0,
-                "flow_iat_max": 0.0,
-                "flow_iat_min": 0.0,
-                "fwd_iat_total": 0.0,
-                "fwd_iat_mean": 0.0,
-                "fwd_iat_std": 0.0,
-                "fwd_iat_max": 0.0,
-                "fwd_iat_min": 0.0,
-                "bwd_iat_total": 0.0,
-                "bwd_iat_mean": 0.0,
-                "bwd_iat_std": 0.0,
-                "bwd_iat_max": 0.0,
-                "bwd_iat_min": 0.0,
-                "fwd_psh_flags": 0.0,
-                "bwd_psh_flags": 0.0,
-                "fwd_urg_flags": 0.0,
-                "bwd_urg_flags": 0.0,
-                "fwd_header_length": 20.0,
-                "bwd_header_length": 0.0,
-                "fwd_packets_per_second": 1.0,
-                "bwd_packets_per_second": 0.0,
-                "min_packet_length": 0.0,
-                "max_packet_length": 1500.0,
-                "packet_length_mean": 750.0,
-                "packet_length_std": 0.0,
-                "packet_length_variance": 0.0,
-                "fin_flag_count": 0.0,
-                "syn_flag_count": 0.0,
-                "rst_flag_count": 0.0,
-                "psh_flag_count": 0.0,
-                "ack_flag_count": 0.0,
-                "urg_flag_count": 0.0,
-                "cwe_flag_count": 0.0,
-                "ece_flag_count": 0.0,
-                "down_up_ratio": 0.0,
-                "average_packet_size": 750.0,
-                "avg_fwd_segment_size": 0.0,
-                "avg_bwd_segment_size": 0.0,
-                "fwd_header_length_2": 20.0,
-                "fwd_avg_bytes_bulk": 0.0,
-                "fwd_avg_packets_bulk": 0.0,
-                "fwd_avg_bulk_rate": 0.0,
-                "bwd_avg_bytes_bulk": 0.0,
-                "bwd_avg_packets_bulk": 0.0,
-                "bwd_avg_bulk_rate": 0.0,
-                "subflow_fwd_packets": 1.0,
-                "subflow_fwd_bytes": 0.0,
-                "subflow_bwd_packets": 0.0,
-                "subflow_bwd_bytes": 0.0,
-                "init_win_bytes_forward": 0.0,
-                "init_win_bytes_backward": 0.0,
-                "act_data_pkt_fwd": 0.0,
-                "min_seg_size_forward": 0.0,
-                "active_mean": 0.0,
-                "active_std": 0.0,
-                "active_max": 0.0,
-                "active_min": 0.0,
-                "idle_mean": 0.0,
-                "idle_std": 0.0,
-                "idle_max": 0.0,
-                "idle_min": 0.0,
+                "Flow Duration": 1.0,
+                "Fwd Packet Length Max": 1500.0,
+                "Fwd Packet Length Min": 64.0,
+                "Fwd Packet Length Mean": 750.0,
+                "Fwd Packet Length Std": 0.0,
+                "Bwd Packet Length Max": 0.0,
+                "Bwd Packet Length Min": 0.0,
+                "Bwd Packet Length Mean": 0.0,
+                "Bwd Packet Length Std": 0.0,
+                "Flow Bytes/s": 1000.0,
+                "Flow Packets/s": 1.0,
+                "Flow IAT Mean": 0.0,
+                "Flow IAT Std": 0.0,
+                "Flow IAT Max": 0.0,
+                "Flow IAT Min": 0.0,
+                "Fwd IAT Mean": 0.0,
+                "Fwd IAT Std": 0.0,
+                "Fwd IAT Max": 0.0,
+                "Fwd IAT Min": 0.0,
+                "Bwd IAT Mean": 0.0,
+                "Bwd IAT Std": 0.0,
+                "Bwd IAT Max": 0.0,
+                "Bwd IAT Min": 0.0,
+                "FIN Flag Count": 0.0,
+                "SYN Flag Count": 0.0,
+                "RST Flag Count": 0.0,
+                "PSH Flag Count": 0.0,
+                "ACK Flag Count": 0.0,
+                "URG Flag Count": 0.0,
+                "ECE Flag Count": 0.0,
+                "CWR Flag Count": 0.0,
+                "Fwd PSH Flags": 0.0,
+                "Bwd PSH Flags": 0.0,
+                "Fwd URG Flags": 0.0,
+                "Bwd URG Flags": 0.0,
+                "Fwd Header Length": 20.0,
+                "Bwd Header Length": 0.0,
+                "Packet Length Mean": 750.0,
+                "Packet Length Std": 0.0,
+                "Packet Length Variance": 0.0,
+                "Down/Up Ratio": 0.0,
+                "Average Packet Size": 750.0,
             }
 
             return aggregated

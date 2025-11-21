@@ -100,7 +100,8 @@ class RLDetectionService:
 
     def extract_features(self, packet_data: Dict[str, Any]) -> Optional[np.ndarray]:
         """
-        Extract features from packet data for RL agent
+        Extract features from packet data for RL agent.
+        Feature names MUST match exactly with feature_names.json for model prediction.
 
         Args:
             packet_data: Dictionary containing packet information
@@ -109,17 +110,64 @@ class RLDetectionService:
             Feature vector as numpy array
         """
         try:
-            # Basic features from packet
+            # Get packet characteristics
+            packet_size = float(packet_data.get("size", 64))
+
+            # Extract TCP flags from packet data
+            syn_flag = float(packet_data.get("syn", 0))
+            ack_flag = float(packet_data.get("ack", 0))
+            psh_flag = float(packet_data.get("psh", 0))
+            rst_flag = float(packet_data.get("rst", 0))
+            fin_flag = float(packet_data.get("fin", 0))
+            urg_flag = float(packet_data.get("urg", 0))
+            ece_flag = float(packet_data.get("ece", 0))
+            cwr_flag = float(packet_data.get("cwr", 0))
+
+            # Feature names must match exactly what the model expects
+            # These are the 42 features from feature_names.json
             features = {
-                "protocol": self._encode_protocol(packet_data.get("protocol", "TCP")),
-                "packet_length": float(packet_data.get("size", 0)),
-                "src_port": float(packet_data.get("src_port", 0)),
-                "dst_port": float(packet_data.get("dst_port", 0)),
-                "flag_syn": float(packet_data.get("syn", 0)),
-                "flag_ack": float(packet_data.get("ack", 0)),
-                "flag_psh": float(packet_data.get("psh", 0)),
-                "flag_rst": float(packet_data.get("rst", 0)),
-                "flag_fin": float(packet_data.get("fin", 0)),
+                "Flow Duration": 1.0,
+                "Fwd Packet Length Max": packet_size,
+                "Fwd Packet Length Min": packet_size,
+                "Fwd Packet Length Mean": packet_size,
+                "Fwd Packet Length Std": 0.0,
+                "Bwd Packet Length Max": 0.0,
+                "Bwd Packet Length Min": 0.0,
+                "Bwd Packet Length Mean": 0.0,
+                "Bwd Packet Length Std": 0.0,
+                "Flow Bytes/s": packet_size,
+                "Flow Packets/s": 1.0,
+                "Flow IAT Mean": 0.0,
+                "Flow IAT Std": 0.0,
+                "Flow IAT Max": 0.0,
+                "Flow IAT Min": 0.0,
+                "Fwd IAT Mean": 0.0,
+                "Fwd IAT Std": 0.0,
+                "Fwd IAT Max": 0.0,
+                "Fwd IAT Min": 0.0,
+                "Bwd IAT Mean": 0.0,
+                "Bwd IAT Std": 0.0,
+                "Bwd IAT Max": 0.0,
+                "Bwd IAT Min": 0.0,
+                "FIN Flag Count": fin_flag,
+                "SYN Flag Count": syn_flag,
+                "RST Flag Count": rst_flag,
+                "PSH Flag Count": psh_flag,
+                "ACK Flag Count": ack_flag,
+                "URG Flag Count": urg_flag,
+                "ECE Flag Count": ece_flag,
+                "CWR Flag Count": cwr_flag,
+                "Fwd PSH Flags": psh_flag,
+                "Bwd PSH Flags": 0.0,
+                "Fwd URG Flags": urg_flag,
+                "Bwd URG Flags": 0.0,
+                "Fwd Header Length": 20.0,
+                "Bwd Header Length": 0.0,
+                "Packet Length Mean": packet_size,
+                "Packet Length Std": 0.0,
+                "Packet Length Variance": 0.0,
+                "Down/Up Ratio": 0.0,
+                "Average Packet Size": packet_size,
             }
 
             # Create feature vector matching training format
@@ -129,14 +177,11 @@ class RLDetectionService:
                     feature_vector.append(features.get(feature_name, 0.0))
                 X = np.array(feature_vector).reshape(1, -1)
             else:
-                # Pad to expected feature size (77 features)
+                # Use the 42 features in order
                 feature_vector = list(features.values())
-                # Pad with zeros to reach 77 features
-                while len(feature_vector) < 77:
-                    feature_vector.append(0.0)
-                X = np.array(feature_vector[:77]).reshape(1, -1)
+                X = np.array(feature_vector).reshape(1, -1)
 
-            # Scale features
+            # Scale features if scaler available
             if self.scaler:
                 X = self.scaler.transform(X)
 
