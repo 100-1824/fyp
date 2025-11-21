@@ -336,7 +336,7 @@ print(f"Agent state size: {agent.state_size}")
 print(f"Model input shape: {agent.model.input_shape}")
 
 # Training parameters
-N_EPISODES = 300  # Increase for better results
+N_EPISODES = 25  # Quick training
 UPDATE_TARGET_FREQ = 10
 SAVE_FREQ = 50
 
@@ -391,8 +391,8 @@ for episode in range(N_EPISODES):
 
 print("=" * 70)
 print("Training Complete!")
-print(f"Final Average Accuracy: {np.mean(episode_accuracies[-20:]):.3f}")
-print(f"Final Average F1 Score: {np.mean(episode_f1_scores[-20:]):.3f}")
+print(f"Final Average Accuracy: {np.mean(episode_accuracies[-10:]):.3f}")
+print(f"Final Average F1 Score: {np.mean(episode_f1_scores[-10:]):.3f}")
 print("=" * 70)
 
 # ============================================================================
