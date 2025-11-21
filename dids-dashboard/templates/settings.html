@@ -738,6 +738,13 @@
             }
         }
 
+        // Verify toast and loading utilities are available
+        if (typeof toast === 'undefined' || typeof loading === 'undefined') {
+            console.error('Interactive utilities not loaded! toast:', typeof toast, 'loading:', typeof loading);
+        } else {
+            console.log('Interactive utilities loaded successfully');
+        }
+
         fetch('/api/current_user').then(r => r.json()).then(d => {
             if (d.name) {
                 document.getElementById('current-user').textContent = d.name;
@@ -746,22 +753,33 @@
         });
 
         async function updateAIThreshold() {
-            const threshold = parseFloat(document.getElementById('ai-threshold').value);
+            console.log('updateAIThreshold called');
+            const thresholdInput = document.getElementById('ai-threshold');
+            if (!thresholdInput) {
+                console.error('ai-threshold input not found');
+                alert('Error: ai-threshold input not found');
+                return;
+            }
+            const threshold = parseFloat(thresholdInput.value);
+            console.log('AI threshold value:', threshold);
 
-            if (threshold < 0 || threshold > 1) {
+            if (isNaN(threshold) || threshold < 0 || threshold > 1) {
                 toast.warning('Threshold must be between 0.0 and 1.0');
                 return;
             }
 
             try {
                 loading.show('Updating AI threshold...');
+                console.log('Making POST request to /api/ai-threshold');
                 const response = await fetch('/api/ai-threshold', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ threshold: threshold })
                 });
 
+                console.log('Response status:', response.status);
                 const data = await response.json();
+                console.log('Response data:', data);
                 loading.hide();
 
                 if (data.success) {
@@ -773,15 +791,27 @@
             } catch(e) {
                 console.error('Error updating threshold:', e);
                 loading.hide();
-                toast.error('Failed to update threshold');
+                toast.error('Failed to update threshold: ' + e.message);
             }
         }
 
         async function updateRLThresholds() {
-            const blockThreshold = parseFloat(document.getElementById('rl-block-threshold').value);
-            const alertThreshold = parseFloat(document.getElementById('rl-alert-threshold').value);
+            console.log('updateRLThresholds called');
+            const blockInput = document.getElementById('rl-block-threshold');
+            const alertInput = document.getElementById('rl-alert-threshold');
 
-            if (blockThreshold < 0 || blockThreshold > 1 || alertThreshold < 0 || alertThreshold > 1) {
+            if (!blockInput || !alertInput) {
+                console.error('RL threshold inputs not found');
+                alert('Error: RL threshold inputs not found');
+                return;
+            }
+
+            const blockThreshold = parseFloat(blockInput.value);
+            const alertThreshold = parseFloat(alertInput.value);
+            console.log('RL thresholds - block:', blockThreshold, 'alert:', alertThreshold);
+
+            if (isNaN(blockThreshold) || isNaN(alertThreshold) ||
+                blockThreshold < 0 || blockThreshold > 1 || alertThreshold < 0 || alertThreshold > 1) {
                 toast.warning('Thresholds must be between 0.0 and 1.0');
                 return;
             }
@@ -793,6 +823,7 @@
 
             try {
                 loading.show('Updating RL thresholds...');
+                console.log('Making POST request to /api/rl-threshold');
                 const response = await fetch('/api/rl-threshold', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -802,7 +833,9 @@
                     })
                 });
 
+                console.log('Response status:', response.status);
                 const data = await response.json();
+                console.log('Response data:', data);
                 loading.hide();
 
                 if (data.success) {
@@ -815,7 +848,7 @@
             } catch(e) {
                 console.error('Error updating RL thresholds:', e);
                 loading.hide();
-                toast.error('Failed to update RL thresholds');
+                toast.error('Failed to update RL thresholds: ' + e.message);
             }
         }
 
@@ -833,8 +866,10 @@
                 if (modelInfo.model_loaded) {
                     document.getElementById('ai-status').textContent = 'ACTIVE';
                     document.getElementById('ai-status').className = 'status-badge status-active';
-                    if (modelInfo.confidence_threshold) {
-                        document.getElementById('ai-threshold').value = modelInfo.confidence_threshold;
+                    // Only update threshold input if it doesn't have focus (to not interrupt user editing)
+                    const aiThresholdInput = document.getElementById('ai-threshold');
+                    if (modelInfo.confidence_threshold && document.activeElement !== aiThresholdInput) {
+                        aiThresholdInput.value = modelInfo.confidence_threshold;
                     }
                 } else {
                     document.getElementById('ai-status').textContent = 'OFFLINE';
@@ -845,11 +880,14 @@
                 if (rlStats.rl_model_loaded) {
                     document.getElementById('rl-status').textContent = 'ACTIVE';
                     document.getElementById('rl-status').className = 'status-badge status-active';
-                    if (rlStats.block_threshold !== undefined) {
-                        document.getElementById('rl-block-threshold').value = rlStats.block_threshold;
+                    // Only update threshold inputs if they don't have focus (to not interrupt user editing)
+                    const blockInput = document.getElementById('rl-block-threshold');
+                    const alertInput = document.getElementById('rl-alert-threshold');
+                    if (rlStats.block_threshold !== undefined && document.activeElement !== blockInput) {
+                        blockInput.value = rlStats.block_threshold;
                     }
-                    if (rlStats.alert_threshold !== undefined) {
-                        document.getElementById('rl-alert-threshold').value = rlStats.alert_threshold;
+                    if (rlStats.alert_threshold !== undefined && document.activeElement !== alertInput) {
+                        alertInput.value = rlStats.alert_threshold;
                     }
                     animateNumber('rl-decisions', rlStats.total_decisions || 0);
                 } else {
