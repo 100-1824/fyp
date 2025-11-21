@@ -52,4 +52,10 @@ def init_main_routes(app, mongo, user_service):
         """Settings page"""
         return render_template("settings.html")
 
+    @main_bp.route("/admin/system")
+    @admin_required
+    def admin_system():
+        """System Administration page - Export Data, Logs, Whitelist, Signatures"""
+        return render_template("admin_system.html")
+
     return main_bp

@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>System Administration | DIDS</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --primary-color: #4a6bff;
+        --secondary-color: #f5f7ff;
+        --text-color: #333;
+        --light-text: #777;
+        --error-color: #ff4d4d;
+        --success-color: #4caf50;
+        --warning-color: #ff9800;
+        --info-color: #2196f3;
+        --border-color: #e0e0e0;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: "Roboto", sans-serif;
+      }
+
+      body {
+        background-color: #f9f9f9;
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .admin-container {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      .admin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding: 20px;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      .admin-header h1 {
+        color: var(--primary-color);
+        font-weight: 500;
+        font-size: 24px;
+      }
+
+      .header-actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      .btn {
+        padding: 10px 15px;
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.3s ease;
+      }
+
+      .btn:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      }
+
+      .btn-danger {
+        background-color: var(--error-color);
+      }
+
+      .btn-warning {
+        background-color: var(--warning-color);
+      }
+
+      .btn-success {
+        background-color: var(--success-color);
+      }
+
+      .btn-secondary {
+        background-color: #6c757d;
+      }
+
+      .btn-sm {
+        padding: 6px 12px;
+        font-size: 12px;
+      }
+
+      .tabs {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 20px;
+        background: white;
+        padding: 10px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      .tab {
+        padding: 12px 20px;
+        background: transparent;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--light-text);
+        transition: all 0.3s ease;
+      }
+
+      .tab:hover {
+        background-color: var(--secondary-color);
+        color: var(--text-color);
+      }
+
+      .tab.active {
+        background-color: var(--primary-color);
+        color: white;
+      }
+
+      .tab-content {
+        display: none;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+      }
+
+      .tab-content.active {
+        display: block;
+      }
+
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .section-header h2 {
+        color: var(--text-color);
+        font-weight: 500;
+        font-size: 18px;
+      }
+
+      .card {
+        background: var(--secondary-color);
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 15px;
+      }
+
+      .card-title {
+        font-weight: 500;
+        margin-bottom: 10px;
+        color: var(--text-color);
+      }
+
+      .form-group {
+        margin-bottom: 15px;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+        color: var(--text-color);
+      }
+
+      .form-group input,
+      .form-group select,
+      .form-group textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 5px;
+        font-size: 14px;
+      }
+
+      .form-group input:focus,
+      .form-group select:focus,
+      .form-group textarea:focus {
+        outline: none;
+        border-color: var(--primary-color);
+      }
+
+      .form-row {
+        display: flex;
+        gap: 15px;
+      }
+
+      .form-row .form-group {
+        flex: 1;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      th {
+        background-color: var(--secondary-color);
+        font-weight: 500;
+      }
+
+      tr:hover {
+        background-color: #f5f5f5;
+      }
+
+      .status-active {
+        color: var(--success-color);
+        font-weight: 500;
+      }
+
+      .status-inactive {
+        color: var(--error-color);
+        font-weight: 500;
+      }
+
+      .severity-critical {
+        background-color: #ffebee;
+        color: #c62828;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+      }
+
+      .severity-high {
+        background-color: #fff3e0;
+        color: #e65100;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+      }
+
+      .severity-medium {
+        background-color: #fff8e1;
+        color: #f57f17;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+      }
+
+      .severity-low {
+        background-color: #e8f5e9;
+        color: #2e7d32;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+      }
+
+      .log-level-DEBUG {
+        color: #9e9e9e;
+      }
+
+      .log-level-INFO {
+        color: var(--info-color);
+      }
+
+      .log-level-WARNING {
+        color: var(--warning-color);
+      }
+
+      .log-level-ERROR {
+        color: var(--error-color);
+      }
+
+      .log-level-CRITICAL {
+        color: #b71c1c;
+        font-weight: bold;
+      }
+
+      .alert {
+        padding: 12px 15px;
+        border-radius: 5px;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .alert-success {
+        background-color: #e8f5e9;
+        color: var(--success-color);
+        border: 1px solid var(--success-color);
+      }
+
+      .alert-error {
+        background-color: #ffebee;
+        color: var(--error-color);
+        border: 1px solid var(--error-color);
+      }
+
+      .alert-info {
+        background-color: #e3f2fd;
+        color: var(--info-color);
+        border: 1px solid var(--info-color);
+      }
+
+      .loading {
+        display: none;
+        text-align: center;
+        padding: 40px;
+        color: var(--light-text);
+      }
+
+      .loading.active {
+        display: block;
+      }
+
+      .spinner {
+        border: 3px solid var(--border-color);
+        border-top: 3px solid var(--primary-color);
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 10px;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      .no-data {
+        text-align: center;
+        padding: 40px;
+        color: var(--light-text);
+      }
+
+      .pagination {
+        display: flex;
+        justify-content: center;
+        gap: 5px;
+        margin-top: 20px;
+      }
+
+      .pagination button {
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+        background: white;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+
+      .pagination button:hover {
+        background-color: var(--secondary-color);
+      }
+
+      .pagination button.active {
+        background-color: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+      }
+
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .modal.active {
+        display: flex;
+      }
+
+      .modal-content {
+        background: white;
+        border-radius: 10px;
+        padding: 25px;
+        width: 90%;
+        max-width: 600px;
+        max-height: 80vh;
+        overflow-y: auto;
+      }
+
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .modal-header h3 {
+        font-weight: 500;
+      }
+
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: var(--light-text);
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+      }
+
+      .stat-card {
+        background: var(--secondary-color);
+        border-radius: 8px;
+        padding: 15px;
+        text-align: center;
+      }
+
+      .stat-value {
+        font-size: 28px;
+        font-weight: 500;
+        color: var(--primary-color);
+      }
+
+      .stat-label {
+        color: var(--light-text);
+        font-size: 13px;
+        margin-top: 5px;
+      }
+
+      /* Responsive */
+      @media (max-width: 768px) {
+        body {
+          padding: 10px;
+        }
+
+        .tabs {
+          flex-wrap: wrap;
+        }
+
+        .tab {
+          flex: 1;
+          min-width: 140px;
+          text-align: center;
+        }
+
+        .form-row {
+          flex-direction: column;
+        }
+
+        .admin-header {
+          flex-direction: column;
+          gap: 15px;
+          align-items: flex-start;
+        }
+
+        .header-actions {
+          width: 100%;
+          flex-wrap: wrap;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="admin-container">
+      <!-- Header -->
+      <div class="admin-header">
+        <h1>System Administration</h1>
+        <div class="header-actions">
+          <a href="{{ url_for('main.admin_dashboard') }}" class="btn btn-secondary">User Management</a>
+          <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">Dashboard</a>
+          <a href="{{ url_for('auth.logout') }}" class="btn">Logout</a>
+        </div>
+      </div>
+
+      <!-- Alert Container -->
+      <div id="alertContainer"></div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" data-tab="export">Export Data</button>
+        <button class="tab" data-tab="logs">System Logs</button>
+        <button class="tab" data-tab="whitelist">IP Whitelist</button>
+        <button class="tab" data-tab="signatures">Manage Signatures</button>
+      </div>
+
+      <!-- Export Detection Data Tab -->
+      <div id="export" class="tab-content active">
+        <div class="section-header">
+          <h2>Export Detection Data</h2>
+        </div>
+
+        <div class="stats-grid" id="exportStats">
+          <div class="stat-card">
+            <div class="stat-value" id="totalDetections">-</div>
+            <div class="stat-label">Total Detections</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="totalThreats">-</div>
+            <div class="stat-label">Total Threats</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="last24hDetections">-</div>
+            <div class="stat-label">Detections (24h)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="last24hThreats">-</div>
+            <div class="stat-label">Threats (24h)</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Export Options</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="exportType">Data Type</label>
+              <select id="exportType">
+                <option value="detections">Detections</option>
+                <option value="threats">Threats</option>
+                <option value="statistics">Statistics Summary</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="exportFormat">Format</label>
+              <select id="exportFormat">
+                <option value="json">JSON</option>
+                <option value="csv">CSV</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="exportDays">Time Range (days)</label>
+              <select id="exportDays">
+                <option value="1">Last 24 hours</option>
+                <option value="7" selected>Last 7 days</option>
+                <option value="30">Last 30 days</option>
+                <option value="90">Last 90 days</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="exportLimit">Max Records</label>
+              <select id="exportLimit">
+                <option value="100">100</option>
+                <option value="500">500</option>
+                <option value="1000" selected>1,000</option>
+                <option value="5000">5,000</option>
+                <option value="10000">10,000</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="exportSeverity">Severity (threats only)</label>
+              <select id="exportSeverity">
+                <option value="">All Severities</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+            <div class="form-group" style="display: flex; align-items: flex-end;">
+              <button class="btn btn-success" onclick="exportData()">Export Data</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- System Logs Tab -->
+      <div id="logs" class="tab-content">
+        <div class="section-header">
+          <h2>System Logs</h2>
+          <button class="btn btn-sm" onclick="refreshLogs()">Refresh</button>
+        </div>
+
+        <div class="card">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="logLevel">Log Level</label>
+              <select id="logLevel" onchange="filterLogs()">
+                <option value="">All Levels</option>
+                <option value="DEBUG">DEBUG</option>
+                <option value="INFO">INFO</option>
+                <option value="WARNING">WARNING</option>
+                <option value="ERROR">ERROR</option>
+                <option value="CRITICAL">CRITICAL</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="logComponent">Component</label>
+              <select id="logComponent" onchange="filterLogs()">
+                <option value="">All Components</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="logHours">Time Range</label>
+              <select id="logHours" onchange="filterLogs()">
+                <option value="1">Last hour</option>
+                <option value="6">Last 6 hours</option>
+                <option value="24" selected>Last 24 hours</option>
+                <option value="48">Last 48 hours</option>
+                <option value="168">Last 7 days</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="loading" id="logsLoading">
+          <div class="spinner"></div>
+          <p>Loading logs...</p>
+        </div>
+
+        <table id="logsTable" style="display: none;">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Level</th>
+              <th>Component</th>
+              <th>Message</th>
+              <th>User</th>
+            </tr>
+          </thead>
+          <tbody id="logsBody"></tbody>
+        </table>
+
+        <div class="no-data" id="logsNoData" style="display: none;">
+          <p>No logs found for the selected filters.</p>
+        </div>
+
+        <div class="pagination" id="logsPagination"></div>
+      </div>
+
+      <!-- IP Whitelist Tab -->
+      <div id="whitelist" class="tab-content">
+        <div class="section-header">
+          <h2>IP Whitelist</h2>
+          <button class="btn btn-success" onclick="showAddWhitelistModal()">Add IP</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Check IP</div>
+          <div class="form-row">
+            <div class="form-group">
+              <input type="text" id="checkIp" placeholder="Enter IP address to check" />
+            </div>
+            <div class="form-group" style="display: flex; align-items: flex-end;">
+              <button class="btn" onclick="checkWhitelist()">Check</button>
+            </div>
+          </div>
+          <div id="checkResult"></div>
+        </div>
+
+        <div class="loading" id="whitelistLoading">
+          <div class="spinner"></div>
+          <p>Loading whitelist...</p>
+        </div>
+
+        <table id="whitelistTable" style="display: none;">
+          <thead>
+            <tr>
+              <th>IP / CIDR</th>
+              <th>Description</th>
+              <th>Created By</th>
+              <th>Created At</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="whitelistBody"></tbody>
+        </table>
+
+        <div class="no-data" id="whitelistNoData" style="display: none;">
+          <p>No IPs in whitelist. Add one to get started.</p>
+        </div>
+      </div>
+
+      <!-- Manage Signatures Tab -->
+      <div id="signatures" class="tab-content">
+        <div class="section-header">
+          <h2>Manage Signatures</h2>
+          <button class="btn btn-success" onclick="showAddSignatureModal()">Add Signature</button>
+        </div>
+
+        <div class="stats-grid" id="signatureStats">
+          <div class="stat-card">
+            <div class="stat-value" id="totalSignatures">-</div>
+            <div class="stat-label">Total Signatures</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="activeSignatures">-</div>
+            <div class="stat-label">Active</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="disabledSignatures">-</div>
+            <div class="stat-label">Disabled</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="totalHits">-</div>
+            <div class="stat-label">Total Hits</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="sigSearch">Search</label>
+              <input type="text" id="sigSearch" placeholder="Search signatures..." onkeyup="filterSignatures()" />
+            </div>
+            <div class="form-group">
+              <label for="sigSeverity">Severity</label>
+              <select id="sigSeverity" onchange="filterSignatures()">
+                <option value="">All Severities</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="sigEnabled">Status</label>
+              <select id="sigEnabled" onchange="filterSignatures()">
+                <option value="">All</option>
+                <option value="true">Enabled</option>
+                <option value="false">Disabled</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="sigProtocol">Protocol</label>
+              <select id="sigProtocol" onchange="filterSignatures()">
+                <option value="">All Protocols</option>
+                <option value="tcp">TCP</option>
+                <option value="udp">UDP</option>
+                <option value="icmp">ICMP</option>
+                <option value="ip">IP</option>
+                <option value="http">HTTP</option>
+                <option value="dns">DNS</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="loading" id="signaturesLoading">
+          <div class="spinner"></div>
+          <p>Loading signatures...</p>
+        </div>
+
+        <table id="signaturesTable" style="display: none;">
+          <thead>
+            <tr>
+              <th>SID</th>
+              <th>Message</th>
+              <th>Severity</th>
+              <th>Protocol</th>
+              <th>Hits</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="signaturesBody"></tbody>
+        </table>
+
+        <div class="no-data" id="signaturesNoData" style="display: none;">
+          <p>No signatures found.</p>
+        </div>
+
+        <div class="pagination" id="signaturesPagination"></div>
+      </div>
+    </div>
+
+    <!-- Add Whitelist Modal -->
+    <div class="modal" id="addWhitelistModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Add IP to Whitelist</h3>
+          <button class="modal-close" onclick="closeModal('addWhitelistModal')">&times;</button>
+        </div>
+        <form onsubmit="addToWhitelist(event)">
+          <div class="form-group">
+            <label for="newIp">IP Address or CIDR</label>
+            <input type="text" id="newIp" placeholder="e.g., 192.168.1.1 or 10.0.0.0/24" required />
+          </div>
+          <div class="form-group">
+            <label for="newIpDesc">Description</label>
+            <textarea id="newIpDesc" rows="3" placeholder="Optional description"></textarea>
+          </div>
+          <button type="submit" class="btn btn-success">Add to Whitelist</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Add Signature Modal -->
+    <div class="modal" id="addSignatureModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Add Signature</h3>
+          <button class="modal-close" onclick="closeModal('addSignatureModal')">&times;</button>
+        </div>
+        <form onsubmit="addSignature(event)">
+          <div class="form-group">
+            <label for="newRule">Suricata/Snort Rule</label>
+            <textarea id="newRule" rows="5" placeholder='alert tcp any any -> any 80 (msg:"Example Rule"; sid:1000001; rev:1;)' required></textarea>
+            <small style="color: var(--light-text);">
+              Enter a valid Suricata/Snort rule. Format: action protocol src_ip src_port -> dst_ip dst_port (options)
+            </small>
+          </div>
+          <button type="submit" class="btn btn-success">Add Signature</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- View Signature Modal -->
+    <div class="modal" id="viewSignatureModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Signature Details</h3>
+          <button class="modal-close" onclick="closeModal('viewSignatureModal')">&times;</button>
+        </div>
+        <div id="signatureDetails"></div>
+      </div>
+    </div>
+
+    <script>
+      // Tab switching
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          // Update tabs
+          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+
+          // Update content
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          document.getElementById(tab.dataset.tab).classList.add('active');
+
+          // Load data for the tab
+          loadTabData(tab.dataset.tab);
+        });
+      });
+
+      // Initial load
+      document.addEventListener('DOMContentLoaded', () => {
+        loadTabData('export');
+      });
+
+      function loadTabData(tab) {
+        switch(tab) {
+          case 'export':
+            loadExportStats();
+            break;
+          case 'logs':
+            loadLogs();
+            loadLogComponents();
+            break;
+          case 'whitelist':
+            loadWhitelist();
+            break;
+          case 'signatures':
+            loadSignatures();
+            loadSignatureStats();
+            break;
+        }
+      }
+
+      // Alert function
+      function showAlert(message, type = 'info') {
+        const container = document.getElementById('alertContainer');
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type}`;
+        alert.innerHTML = message;
+        container.appendChild(alert);
+
+        setTimeout(() => alert.remove(), 5000);
+      }
+
+      // Modal functions
+      function showAddWhitelistModal() {
+        document.getElementById('addWhitelistModal').classList.add('active');
+      }
+
+      function showAddSignatureModal() {
+        document.getElementById('addSignatureModal').classList.add('active');
+      }
+
+      function closeModal(id) {
+        document.getElementById(id).classList.remove('active');
+      }
+
+      // ==================== EXPORT FUNCTIONS ====================
+
+      async function loadExportStats() {
+        try {
+          const response = await fetch('/api/v1/admin/export/statistics');
+          const data = await response.json();
+
+          if (response.ok) {
+            document.getElementById('totalDetections').textContent = data.summary.total_detections.toLocaleString();
+            document.getElementById('totalThreats').textContent = data.summary.total_threats.toLocaleString();
+            document.getElementById('last24hDetections').textContent = data.last_24h.detections.toLocaleString();
+            document.getElementById('last24hThreats').textContent = data.last_24h.threats.toLocaleString();
+          }
+        } catch (error) {
+          console.error('Error loading export stats:', error);
+        }
+      }
+
+      function exportData() {
+        const type = document.getElementById('exportType').value;
+        const format = document.getElementById('exportFormat').value;
+        const days = document.getElementById('exportDays').value;
+        const limit = document.getElementById('exportLimit').value;
+        const severity = document.getElementById('exportSeverity').value;
+
+        let url;
+        if (type === 'statistics') {
+          url = '/api/v1/admin/export/statistics';
+        } else {
+          url = `/api/v1/admin/export/${type}?format=${format}&days=${days}&limit=${limit}`;
+          if (severity && type === 'threats') {
+            url += `&severity=${severity}`;
+          }
+        }
+
+        if (format === 'csv' && type !== 'statistics') {
+          // Download CSV file
+          window.location.href = url;
+        } else {
+          // Open JSON in new tab
+          window.open(url, '_blank');
+        }
+
+        showAlert('Export initiated', 'success');
+      }
+
+      // ==================== LOGS FUNCTIONS ====================
+
+      let logsPage = 0;
+      const logsLimit = 50;
+
+      async function loadLogs() {
+        const level = document.getElementById('logLevel').value;
+        const component = document.getElementById('logComponent').value;
+        const hours = document.getElementById('logHours').value;
+
+        document.getElementById('logsLoading').classList.add('active');
+        document.getElementById('logsTable').style.display = 'none';
+        document.getElementById('logsNoData').style.display = 'none';
+
+        try {
+          let url = `/api/v1/admin/logs?hours=${hours}&limit=${logsLimit}&offset=${logsPage * logsLimit}`;
+          if (level) url += `&level=${level}`;
+          if (component) url += `&component=${component}`;
+
+          const response = await fetch(url);
+          const data = await response.json();
+
+          document.getElementById('logsLoading').classList.remove('active');
+
+          if (response.ok && data.logs.length > 0) {
+            renderLogs(data.logs);
+            renderLogsPagination(data.total);
+            document.getElementById('logsTable').style.display = 'table';
+          } else {
+            document.getElementById('logsNoData').style.display = 'block';
+          }
+        } catch (error) {
+          console.error('Error loading logs:', error);
+          document.getElementById('logsLoading').classList.remove('active');
+          showAlert('Failed to load logs', 'error');
+        }
+      }
+
+      function renderLogs(logs) {
+        const tbody = document.getElementById('logsBody');
+        tbody.innerHTML = logs.map(log => `
+          <tr>
+            <td>${new Date(log.timestamp).toLocaleString()}</td>
+            <td class="log-level-${log.level}">${log.level}</td>
+            <td>${log.component || '-'}</td>
+            <td>${log.message}</td>
+            <td>${log.user || '-'}</td>
+          </tr>
+        `).join('');
+      }
+
+      function renderLogsPagination(total) {
+        const pages = Math.ceil(total / logsLimit);
+        const container = document.getElementById('logsPagination');
+
+        if (pages <= 1) {
+          container.innerHTML = '';
+          return;
+        }
+
+        let html = '';
+        for (let i = 0; i < Math.min(pages, 10); i++) {
+          html += `<button class="${i === logsPage ? 'active' : ''}" onclick="goToLogsPage(${i})">${i + 1}</button>`;
+        }
+        container.innerHTML = html;
+      }
+
+      function goToLogsPage(page) {
+        logsPage = page;
+        loadLogs();
+      }
+
+      function filterLogs() {
+        logsPage = 0;
+        loadLogs();
+      }
+
+      function refreshLogs() {
+        logsPage = 0;
+        loadLogs();
+      }
+
+      async function loadLogComponents() {
+        try {
+          const response = await fetch('/api/v1/admin/logs/components');
+          const data = await response.json();
+
+          if (response.ok) {
+            const select = document.getElementById('logComponent');
+            const currentValue = select.value;
+            select.innerHTML = '<option value="">All Components</option>';
+
+            Object.keys(data.components).forEach(comp => {
+              select.innerHTML += `<option value="${comp}">${comp} (${data.components[comp]})</option>`;
+            });
+
+            select.value = currentValue;
+          }
+        } catch (error) {
+          console.error('Error loading log components:', error);
+        }
+      }
+
+      // ==================== WHITELIST FUNCTIONS ====================
+
+      async function loadWhitelist() {
+        document.getElementById('whitelistLoading').classList.add('active');
+        document.getElementById('whitelistTable').style.display = 'none';
+        document.getElementById('whitelistNoData').style.display = 'none';
+
+        try {
+          const response = await fetch('/api/v1/admin/whitelist');
+          const data = await response.json();
+
+          document.getElementById('whitelistLoading').classList.remove('active');
+
+          if (response.ok && data.whitelist.length > 0) {
+            renderWhitelist(data.whitelist);
+            document.getElementById('whitelistTable').style.display = 'table';
+          } else {
+            document.getElementById('whitelistNoData').style.display = 'block';
+          }
+        } catch (error) {
+          console.error('Error loading whitelist:', error);
+          document.getElementById('whitelistLoading').classList.remove('active');
+          showAlert('Failed to load whitelist', 'error');
+        }
+      }
+
+      function renderWhitelist(entries) {
+        const tbody = document.getElementById('whitelistBody');
+        tbody.innerHTML = entries.map(entry => `
+          <tr>
+            <td><strong>${entry.ip}</strong></td>
+            <td>${entry.description || '-'}</td>
+            <td>${entry.created_by || '-'}</td>
+            <td>${entry.created_at ? new Date(entry.created_at).toLocaleString() : '-'}</td>
+            <td class="${entry.active !== false ? 'status-active' : 'status-inactive'}">
+              ${entry.active !== false ? 'Active' : 'Inactive'}
+            </td>
+            <td>
+              <button class="btn btn-sm btn-danger" onclick="removeFromWhitelist('${entry._id}', '${entry.ip}')">Remove</button>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      async function addToWhitelist(event) {
+        event.preventDefault();
+
+        const ip = document.getElementById('newIp').value.trim();
+        const description = document.getElementById('newIpDesc').value.trim();
+
+        try {
+          const response = await fetch('/api/v1/admin/whitelist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ip, description })
+          });
+
+          const data = await response.json();
+
+          if (response.ok) {
+            showAlert(`IP ${ip} added to whitelist`, 'success');
+            closeModal('addWhitelistModal');
+            document.getElementById('newIp').value = '';
+            document.getElementById('newIpDesc').value = '';
+            loadWhitelist();
+          } else {
+            showAlert(data.error || 'Failed to add IP', 'error');
+          }
+        } catch (error) {
+          console.error('Error adding to whitelist:', error);
+          showAlert('Failed to add IP to whitelist', 'error');
+        }
+      }
+
+      async function removeFromWhitelist(id, ip) {
+        if (!confirm(`Are you sure you want to remove ${ip} from the whitelist?`)) return;
+
+        try {
+          const response = await fetch(`/api/v1/admin/whitelist/${id}`, {
+            method: 'DELETE'
+          });
+
+          const data = await response.json();
+
+          if (response.ok) {
+            showAlert(`IP ${ip} removed from whitelist`, 'success');
+            loadWhitelist();
+          } else {
+            showAlert(data.error || 'Failed to remove IP', 'error');
+          }
+        } catch (error) {
+          console.error('Error removing from whitelist:', error);
+          showAlert('Failed to remove IP from whitelist', 'error');
+        }
+      }
+
+      async function checkWhitelist() {
+        const ip = document.getElementById('checkIp').value.trim();
+        if (!ip) {
+          showAlert('Please enter an IP address', 'error');
+          return;
+        }
+
+        try {
+          const response = await fetch(`/api/v1/admin/whitelist/check/${ip}`);
+          const data = await response.json();
+
+          const resultDiv = document.getElementById('checkResult');
+
+          if (response.ok) {
+            if (data.whitelisted) {
+              resultDiv.innerHTML = `<div class="alert alert-success">IP ${ip} is whitelisted. Matched: ${data.matched_entry}</div>`;
+            } else {
+              resultDiv.innerHTML = `<div class="alert alert-info">IP ${ip} is NOT in the whitelist.</div>`;
+            }
+          } else {
+            resultDiv.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+          }
+        } catch (error) {
+          console.error('Error checking whitelist:', error);
+          showAlert('Failed to check IP', 'error');
+        }
+      }
+
+      // ==================== SIGNATURES FUNCTIONS ====================
+
+      let signaturesPage = 0;
+      const signaturesLimit = 50;
+
+      async function loadSignatures() {
+        const search = document.getElementById('sigSearch').value;
+        const severity = document.getElementById('sigSeverity').value;
+        const enabled = document.getElementById('sigEnabled').value;
+        const protocol = document.getElementById('sigProtocol').value;
+
+        document.getElementById('signaturesLoading').classList.add('active');
+        document.getElementById('signaturesTable').style.display = 'none';
+        document.getElementById('signaturesNoData').style.display = 'none';
+
+        try {
+          let url = `/api/v1/admin/signatures?limit=${signaturesLimit}&offset=${signaturesPage * signaturesLimit}`;
+          if (search) url += `&search=${encodeURIComponent(search)}`;
+          if (severity) url += `&severity=${severity}`;
+          if (enabled) url += `&enabled=${enabled}`;
+          if (protocol) url += `&protocol=${protocol}`;
+
+          const response = await fetch(url);
+          const data = await response.json();
+
+          document.getElementById('signaturesLoading').classList.remove('active');
+
+          if (response.ok && data.signatures.length > 0) {
+            renderSignatures(data.signatures);
+            renderSignaturesPagination(data.total);
+            document.getElementById('signaturesTable').style.display = 'table';
+          } else {
+            document.getElementById('signaturesNoData').style.display = 'block';
+          }
+        } catch (error) {
+          console.error('Error loading signatures:', error);
+          document.getElementById('signaturesLoading').classList.remove('active');
+          showAlert('Failed to load signatures', 'error');
+        }
+      }
+
+      function renderSignatures(signatures) {
+        const tbody = document.getElementById('signaturesBody');
+        tbody.innerHTML = signatures.map(sig => `
+          <tr>
+            <td>${sig.sid}</td>
+            <td>${sig.msg || '-'}</td>
+            <td><span class="severity-${sig.severity}">${sig.severity}</span></td>
+            <td>${sig.protocol.toUpperCase()}</td>
+            <td>${sig.hit_count || 0}</td>
+            <td class="${sig.enabled !== false ? 'status-active' : 'status-inactive'}">
+              ${sig.enabled !== false ? 'Enabled' : 'Disabled'}
+            </td>
+            <td>
+              <button class="btn btn-sm" onclick="viewSignature('${sig.sid}')">View</button>
+              <button class="btn btn-sm btn-warning" onclick="toggleSignature('${sig.sid}')">${sig.enabled !== false ? 'Disable' : 'Enable'}</button>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      function renderSignaturesPagination(total) {
+        const pages = Math.ceil(total / signaturesLimit);
+        const container = document.getElementById('signaturesPagination');
+
+        if (pages <= 1) {
+          container.innerHTML = '';
+          return;
+        }
+
+        let html = '';
+        for (let i = 0; i < Math.min(pages, 10); i++) {
+          html += `<button class="${i === signaturesPage ? 'active' : ''}" onclick="goToSignaturesPage(${i})">${i + 1}</button>`;
+        }
+        container.innerHTML = html;
+      }
+
+      function goToSignaturesPage(page) {
+        signaturesPage = page;
+        loadSignatures();
+      }
+
+      function filterSignatures() {
+        signaturesPage = 0;
+        loadSignatures();
+      }
+
+      async function loadSignatureStats() {
+        try {
+          const response = await fetch('/api/v1/admin/signatures/statistics');
+          const data = await response.json();
+
+          if (response.ok) {
+            document.getElementById('totalSignatures').textContent = data.total_loaded || 0;
+            document.getElementById('activeSignatures').textContent = data.active_rules || 0;
+            document.getElementById('disabledSignatures').textContent = data.disabled_rules || 0;
+            document.getElementById('totalHits').textContent = (data.total_hits || 0).toLocaleString();
+          }
+        } catch (error) {
+          console.error('Error loading signature stats:', error);
+        }
+      }
+
+      async function viewSignature(sid) {
+        try {
+          const response = await fetch(`/api/v1/admin/signatures/${sid}`);
+          const data = await response.json();
+
+          if (response.ok) {
+            const details = document.getElementById('signatureDetails');
+            details.innerHTML = `
+              <div class="card">
+                <p><strong>SID:</strong> ${data.sid}</p>
+                <p><strong>Message:</strong> ${data.msg || '-'}</p>
+                <p><strong>Action:</strong> ${data.action}</p>
+                <p><strong>Protocol:</strong> ${data.protocol.toUpperCase()}</p>
+                <p><strong>Source:</strong> ${data.src_ip}:${data.src_port}</p>
+                <p><strong>Direction:</strong> ${data.direction}</p>
+                <p><strong>Destination:</strong> ${data.dst_ip}:${data.dst_port}</p>
+                <p><strong>Severity:</strong> <span class="severity-${data.severity}">${data.severity}</span></p>
+                <p><strong>Priority:</strong> ${data.priority}</p>
+                <p><strong>Class Type:</strong> ${data.classtype || '-'}</p>
+                <p><strong>Hit Count:</strong> ${data.hit_count || 0}</p>
+                <p><strong>Status:</strong> ${data.enabled !== false ? 'Enabled' : 'Disabled'}</p>
+              </div>
+              <div class="card">
+                <p><strong>Raw Rule:</strong></p>
+                <pre style="background: #f5f5f5; padding: 10px; overflow-x: auto; font-size: 12px;">${data.raw_rule || '-'}</pre>
+              </div>
+            `;
+            document.getElementById('viewSignatureModal').classList.add('active');
+          } else {
+            showAlert(data.error || 'Failed to load signature', 'error');
+          }
+        } catch (error) {
+          console.error('Error viewing signature:', error);
+          showAlert('Failed to load signature details', 'error');
+        }
+      }
+
+      async function toggleSignature(sid) {
+        try {
+          const response = await fetch(`/api/v1/admin/signatures/${sid}/toggle`, {
+            method: 'POST'
+          });
+
+          const data = await response.json();
+
+          if (response.ok) {
+            showAlert(data.message, 'success');
+            loadSignatures();
+            loadSignatureStats();
+          } else {
+            showAlert(data.error || 'Failed to toggle signature', 'error');
+          }
+        } catch (error) {
+          console.error('Error toggling signature:', error);
+          showAlert('Failed to toggle signature', 'error');
+        }
+      }
+
+      async function addSignature(event) {
+        event.preventDefault();
+
+        const rule = document.getElementById('newRule').value.trim();
+
+        try {
+          const response = await fetch('/api/v1/admin/signatures', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rule })
+          });
+
+          const data = await response.json();
+
+          if (response.ok) {
+            showAlert('Signature added successfully', 'success');
+            closeModal('addSignatureModal');
+            document.getElementById('newRule').value = '';
+            loadSignatures();
+            loadSignatureStats();
+          } else {
+            showAlert(data.error || 'Failed to add signature', 'error');
+          }
+        } catch (error) {
+          console.error('Error adding signature:', error);
+          showAlert('Failed to add signature', 'error');
+        }
+      }
+    </script>
+  </body>
+</html>

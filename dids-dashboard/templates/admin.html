@@ -204,6 +204,7 @@
       <div class="admin-header">
         <h2>Admin Dashboard</h2>
         <div>
+          <a href="{{ url_for('main.admin_system') }}" class="btn btn-warning">System Administration</a>
           <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
           <a href="{{ url_for('auth.logout') }}" class="btn">Logout</a>
         </div>
