@@ -764,12 +764,12 @@
             console.log('AI threshold value:', threshold);
 
             if (isNaN(threshold) || threshold < 0 || threshold > 1) {
-                toast.warning('Threshold must be between 0.0 and 1.0');
+                alert('Threshold must be between 0.0 and 1.0');
                 return;
             }
 
             try {
-                loading.show('Updating AI threshold...');
+                if (typeof loading !== 'undefined') loading.show('Updating AI threshold...');
                 console.log('Making POST request to /api/ai-threshold');
                 const response = await fetch('/api/ai-threshold', {
                     method: 'POST',
@@ -780,18 +780,18 @@
                 console.log('Response status:', response.status);
                 const data = await response.json();
                 console.log('Response data:', data);
-                loading.hide();
+                if (typeof loading !== 'undefined') loading.hide();
 
                 if (data.success) {
-                    toast.success('AI threshold updated to ' + (threshold * 100).toFixed(0) + '%');
-                    pulseElement('ai-threshold');
+                    alert('AI threshold updated to ' + (threshold * 100).toFixed(0) + '%');
+                    if (typeof pulseElement !== 'undefined') pulseElement('ai-threshold');
                 } else {
-                    toast.error('Failed to update threshold: ' + (data.error || 'Unknown error'));
+                    alert('Failed to update threshold: ' + (data.error || 'Unknown error'));
                 }
             } catch(e) {
                 console.error('Error updating threshold:', e);
-                loading.hide();
-                toast.error('Failed to update threshold: ' + e.message);
+                if (typeof loading !== 'undefined') loading.hide();
+                alert('Failed to update threshold: ' + e.message);
             }
         }
 
@@ -812,17 +812,17 @@
 
             if (isNaN(blockThreshold) || isNaN(alertThreshold) ||
                 blockThreshold < 0 || blockThreshold > 1 || alertThreshold < 0 || alertThreshold > 1) {
-                toast.warning('Thresholds must be between 0.0 and 1.0');
+                alert('Thresholds must be between 0.0 and 1.0');
                 return;
             }
 
             if (alertThreshold > blockThreshold) {
-                toast.warning('Alert threshold should be lower than block threshold');
+                alert('Alert threshold should be lower than block threshold');
                 return;
             }
 
             try {
-                loading.show('Updating RL thresholds...');
+                if (typeof loading !== 'undefined') loading.show('Updating RL thresholds...');
                 console.log('Making POST request to /api/rl-threshold');
                 const response = await fetch('/api/rl-threshold', {
                     method: 'POST',
@@ -836,19 +836,21 @@
                 console.log('Response status:', response.status);
                 const data = await response.json();
                 console.log('Response data:', data);
-                loading.hide();
+                if (typeof loading !== 'undefined') loading.hide();
 
                 if (data.success) {
-                    toast.success('RL thresholds updated: Block=' + (blockThreshold * 100).toFixed(0) + '%, Alert=' + (alertThreshold * 100).toFixed(0) + '%');
-                    pulseElement('rl-block-threshold');
-                    pulseElement('rl-alert-threshold');
+                    alert('RL thresholds updated: Block=' + (blockThreshold * 100).toFixed(0) + '%, Alert=' + (alertThreshold * 100).toFixed(0) + '%');
+                    if (typeof pulseElement !== 'undefined') {
+                        pulseElement('rl-block-threshold');
+                        pulseElement('rl-alert-threshold');
+                    }
                 } else {
-                    toast.error('Failed to update thresholds: ' + (data.error || 'Unknown error'));
+                    alert('Failed to update thresholds: ' + (data.error || 'Unknown error'));
                 }
             } catch(e) {
                 console.error('Error updating RL thresholds:', e);
-                loading.hide();
-                toast.error('Failed to update RL thresholds: ' + e.message);
+                if (typeof loading !== 'undefined') loading.hide();
+                alert('Failed to update RL thresholds: ' + e.message);
             }
         }
 
@@ -898,7 +900,6 @@
                 document.getElementById('network-interface').textContent = 'eth0';
             } catch(e) {
                 console.error('Error loading settings:', e);
-                toast.error('Failed to load settings data');
             }
         }
 
